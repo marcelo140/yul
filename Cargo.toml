@@ -1,0 +1,17 @@
+[package]
+name = "rust"
+version = "0.1.0"
+authors = ["Marcelo Miranda <marcelo.caridade@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+rustyline = "3.0"
+pom = "3.0"
+
+[[bin]]
+name = "step0_repl"
+path = "src/bin/step0_repl.rs"
+
+[[bin]]
+name = "step1_read_print"
+path = "src/bin/step1_read_print.rs"
