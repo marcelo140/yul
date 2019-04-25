@@ -13,7 +13,7 @@ fn eval_ast(val: MalVal, repl_env: &HashMap<&str, FnExpr>) -> Result<MalVal> {
         MalVal::Sym(x) => {
             repl_env.get(x.as_str())
                 .map(|f| MalVal::Fun(*f))
-                .ok_or_else(|| Error::NoSymbolFound(x))
+                .ok_or(Error::NoSymbolFound)
         },
 
         MalVal::List(vec) => {
