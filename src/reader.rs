@@ -1,7 +1,9 @@
 use pom::parser::*;
 use pom::char_class::*;
 
-use crate::types::MalVal;
+use std::collections::HashMap;
+
+use crate::types::*;
 
 fn spaces<'a>() -> Parser<'a, u8, ()> {
     one_of(b" \n\r,").repeat(0..).discard()
@@ -51,7 +53,25 @@ fn read_vector<'a>() -> Parser<'a, u8, MalVal> {
 }
 
 fn read_hashmap<'a>() -> Parser<'a, u8, MalVal> {
-    delimited(sym(b'{'), sym(b'}'), call(read_form)).map(MalVal::HashMap)
+    (sym(b'{') * ignored() * list(call(read_form), ignored()) - ignored() - sym(b'}'))
+        .map(|mut v| pair_list(&mut v).unwrap())
+        .map(MalVal::HashMap)
+}
+
+fn pair_list(list: &mut Vec<MalVal>) -> Result<HashMap<String, MalVal>> {
+    let mut hm = HashMap::new();
+
+    while !list.is_empty() {
+        let v = list.pop().unwrap();
+
+        match list.pop().unwrap() {
+            MalVal::Str(k) => hm.insert(k, v),
+            MalVal::Sym(k) => hm.insert(k, v),
+            _ => return Err(Error::ParseError),
+        };
+    }
+
+    Ok(hm)
 }
 
 fn read_atom<'a>() -> Parser<'a, u8, MalVal> {
@@ -77,7 +97,12 @@ fn read_metadata<'a>() -> Parser<'a, u8, MalVal> {
 }
 
 fn read_macro<'a>() -> Parser<'a, u8, MalVal> {
-    read_splice_unquote() | read_unquote() | read_quote() | read_quasiquote() | read_deref() | read_metadata()
+    read_splice_unquote() 
+        | read_unquote() 
+        | read_quote() 
+        | read_quasiquote() 
+        | read_deref() 
+        | read_metadata()
 }
 
 fn read_quote<'a>() -> Parser<'a, u8, MalVal> {
