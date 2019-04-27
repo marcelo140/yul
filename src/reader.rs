@@ -52,6 +52,7 @@ fn read_vector<'a>() -> Parser<'a, u8, MalVal> {
     delimited(sym(b'['), sym(b']'), call(read_form)).map(MalVal::Vector)
 }
 
+// TODO: Refactor hashmap reader. Get rid of unwraps
 fn read_hashmap<'a>() -> Parser<'a, u8, MalVal> {
     (sym(b'{') * ignored() * list(call(read_form), ignored()) - ignored() - sym(b'}'))
         .map(|mut v| pair_list(&mut v).unwrap())

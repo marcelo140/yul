@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 rustyline = "3.0"
 pom = "3.0"
+itertools = "0.8"
 
 [[bin]]
 name = "step0_repl"

@@ -5,6 +5,7 @@ use std::error;
 use std::fmt::{self, Display};
 
 pub type FnExpr = fn(Vec<MalVal>) -> Result<MalVal>;
+pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Debug, Clone)]
 pub enum MalVal {
@@ -20,9 +21,24 @@ pub enum MalVal {
 }
 
 impl MalVal {
+    // TODO: cast_to_int and cast_to_list are not consistent in term of borrowing
     pub fn cast_to_int(&self) -> Result<i32> {
         match *self {
             MalVal::Int(x) => Ok(x),
+            _ => Err(Error::EvalError),
+        }
+    }
+
+    pub fn cast_to_sym(&self) -> Result<String> {
+        match self {
+            MalVal::Sym(x) => Ok(x.clone()),
+            _ => Err(Error::EvalError),
+        }
+    }
+
+    pub fn cast_to_fn(&self) -> Result<FnExpr> {
+        match *self {
+            MalVal::Fun(x) => Ok(x),
             _ => Err(Error::EvalError),
         }
     }
@@ -36,7 +52,7 @@ impl MalVal {
 
     pub fn cast_to_list(self) -> Result<Vec<MalVal>> {
         match self {
-            MalVal::List(x) => Ok(x),
+            MalVal::List(x) | MalVal::Vector(x) => Ok(x),
             _ => Err(Error::EvalError),
         }
     }
@@ -47,18 +63,7 @@ pub enum Error {
     ParseError,
     EvalError,
     ArgsError,
-    NoSymbolFound,
-}
-
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match self {
-            Error::ParseError => "Parse error",
-            Error::EvalError => "Eval error",
-            Error::ArgsError => "Args error",
-            Error::NoSymbolFound => "No symbol found",
-        }
-    }
+    NoSymbolFound(String),
 }
 
 impl Display for Error {
@@ -67,11 +72,12 @@ impl Display for Error {
             Error::ParseError => write!(f, "Parse error"),
             Error::EvalError => write!(f, "Eval error"),
             Error::ArgsError => write!(f, "Args error"),
-            Error::NoSymbolFound => write!(f, "No symbol found"),
+            Error::NoSymbolFound(s) => write!(f, "{} not found", s),
         }
     }
 }
 
+// TODO: Refactor fmt
 impl Display for MalVal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -102,11 +108,20 @@ fn print_sequence(seq: &[MalVal], start: &str, end: &str) -> String {
     format!("{}{}{}", start, seq.join(" "), end)
 }
 
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        match self {
+            Error::ParseError => "Parse error",
+            Error::EvalError => "Eval error",
+            Error::ArgsError => "Args error",
+            Error::NoSymbolFound(_s) => "No symbol found",
+        }
+    }
+}
+
 impl From<pom::Error> for Error {
     fn from(_error: pom::Error) -> Error {
         Error::ParseError
     }
 }
-
-pub type Result<T> = ::std::result::Result<T, Error>;
 
