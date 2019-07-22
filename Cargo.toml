@@ -8,11 +8,3 @@ edition = "2018"
 rustyline = "3.0"
 pom = "3.0"
 itertools = "0.8"
-
-[[bin]]
-name = "step0_repl"
-path = "src/bin/step0_repl.rs"
-
-[[bin]]
-name = "step1_read_print"
-path = "src/bin/step1_read_print.rs"
