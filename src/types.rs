@@ -42,8 +42,7 @@ impl MClosure {
             binds,
             body,
         }
-    }
-
+    } 
     pub fn apply(&self, exprs: Vec<MValue>) -> (MValue, Env) {
         let copy = self.clone();
         let env = Env::with_binds(Some(copy.env), copy.binds, exprs);
@@ -135,7 +134,7 @@ impl MValue {
             _ => false,
         }
     }
-    //
+
     // TODO: cast_to_int and cast_to_list are not consistent in term of borrowing
     pub fn cast_to_int(&self) -> Result<i32> {
         match *self.0 {
@@ -208,20 +207,28 @@ impl MValue {
                     .collect::<Vec<MValue>>();
                 print_sequence(&l, "{", "}", readably)
             },
-            Fun(_fun) => "#<function>".to_string(),
-            Lambda(ref _fun) => "#<function>".to_string(),
+            Fun(_) | Lambda(_) => "#<function>".to_string(),
         }
     }
 }
 
+fn print_sequence(seq: &[MValue], start: &str, end: &str, readably: bool) -> String {
+    let seq: Vec<String> = seq
+        .iter()
+        .map(|v| v.pr_str(readably))
+        .collect();
+
+    format!("{}{}{}", start, seq.join(" "), end)
+}
+
 fn escape_str(s: &str) -> String {
     s.chars().map(|c| {
-	match c {
-	    '"' => "\\\"".to_string(),
-	    '\n' => "\\n".to_string(),
-	    '\\' => "\\\\".to_string(),
-	    _ => c.to_string(),
-	}
+        match c {
+            '"' => "\\\"".to_string(),
+            '\n' => "\\n".to_string(),
+            '\\' => "\\\\".to_string(),
+            _ => c.to_string(),
+        }
     }).collect::<Vec<String>>().join("")
 }
 
@@ -267,15 +274,6 @@ impl PartialEq for MalVal {
       _ => false,
     }
   }
-}
-
-fn print_sequence(seq: &[MValue], start: &str, end: &str, readably: bool) -> String {
-    let seq: Vec<String> = seq
-        .iter()
-        .map(|v| v.pr_str(readably))
-        .collect();
-
-    format!("{}{}{}", start, seq.join(" "), end)
 }
 
 impl From<pom::Error> for Error {
