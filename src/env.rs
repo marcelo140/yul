@@ -4,17 +4,27 @@ use crate::types::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-#[derive(Debug, Clone, PartialEq)]
+// TODO: Rename PEnv
+// TODO: is RC and RefCell really necessary ? why ?
+
+#[derive(Debug, Clone)]
 pub struct Env(Rc<RefCell<PEnv>>);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 struct PEnv {
     mappings: HashMap<String, MValue>,
-    outer: Option<Env>, 
+    outer: Option<Env>,
 }
 
 impl Env {
-    pub fn new(outer: Option<Env>, binds: Vec<String>, exprs: Vec<MValue>) -> Self {
+    pub fn new(outer: Option<Env>) -> Self {
+        Env(Rc::new(RefCell::new(PEnv {
+            mappings: HashMap::new(),
+            outer
+        })))
+    }
+
+    pub fn with_binds(outer: Option<Env>, binds: Vec<String>, exprs: Vec<MValue>) -> Self {
         let mut mappings = HashMap::new();
 
         for (i, b) in binds.iter().enumerate() {

@@ -88,7 +88,7 @@ fn eval(input: MValue, env: &mut Env) -> Result<MValue> {
         },
 
         MalVal::Sym(ref sym) if sym == "let*" => {
-            let mut env = Env::new(Some(env.clone()), Vec::new(), Vec::new());
+            let mut env = Env::new(Some(&mut env));
 
             let binds = l[1].clone().cast_to_list()?; // malval clone
 
@@ -135,7 +135,7 @@ fn main() {
     let mut ed = Editor::<()>::new();
     ed.load_history(".mal_history").ok();
 
-    let mut repl_env = Env::new(None, Vec::new(), Vec::new());
+    let mut repl_env = Env::new(None);
     repl_env.set("+".to_string(), MValue::function(add)); // to string
     repl_env.set("-".to_string(), MValue::function(sub)); // to string
     repl_env.set("*".to_string(), MValue::function(mul)); // to string
