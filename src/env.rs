@@ -4,10 +4,10 @@ use crate::types::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Env(Rc<RefCell<PEnv>>);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 struct PEnv {
     mappings: HashMap<String, MValue>,
     outer: Option<Env>, 
@@ -17,8 +17,14 @@ impl Env {
     pub fn new(outer: Option<Env>, binds: Vec<String>, exprs: Vec<MValue>) -> Self {
         let mut mappings = HashMap::new();
 
-        for (b, e) in binds.iter().zip(exprs.iter()) {
-            mappings.insert(b.clone(), e.clone());
+        for (i, b) in binds.iter().enumerate() {
+            if binds[i] == "&" {
+                let final_expr = exprs.into_iter().skip(i).collect::<Vec<MValue>>();
+                mappings.insert(binds[i+1].clone(), MValue::list(final_expr));
+                break;
+            } else {
+                mappings.insert(b.clone(), exprs[i].clone());
+            }
         }
 
         Env(Rc::new(RefCell::new(PEnv {

@@ -10,10 +10,10 @@ pub type FnExpr = fn(Vec<MValue>) -> Result<MValue>;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MValue(pub Rc<MalVal>);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum MalVal {
     Int(i32),
     Bool(bool),
@@ -28,7 +28,7 @@ pub enum MalVal {
     Nil,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct MClosure {
     env: Env,
     binds: Vec<String>,
@@ -250,6 +250,24 @@ impl Display for Error {
     }
 }
 
+impl PartialEq for MalVal {
+  fn eq(&self, other: &MalVal) -> bool {
+    match (self, other) {
+      (Nil, Nil) => true,
+      (Bool(ref x), Bool(ref y)) => x == y,
+      (Int(ref x), Int(ref y)) => x == y,
+      (Str(ref x), Str(ref y)) => x == y,
+      (Keyword(ref x), Keyword(ref y)) => x == y,
+      (Sym(ref x), Sym(ref y)) => x == y,
+      (List(ref x), List(ref y)) |
+      (Vector(ref x), Vector(ref y)) |
+      (List(ref x), Vector(ref y)) |
+      (Vector(ref x), List(ref y)) => x == y,
+      (HashMap(ref x), HashMap(ref y)) => x == y,
+      _ => false,
+    }
+  }
+}
 
 fn print_sequence(seq: &[MValue], start: &str, end: &str, readably: bool) -> String {
     let seq: Vec<String> = seq
