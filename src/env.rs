@@ -4,21 +4,18 @@ use crate::types::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-// TODO: Rename PEnv
-// TODO: is RC and RefCell really necessary ? why ?
+#[derive(Debug, Clone)]
+pub struct Env(Rc<RefCell<SharedEnv>>);
 
 #[derive(Debug, Clone)]
-pub struct Env(Rc<RefCell<PEnv>>);
-
-#[derive(Debug, Clone)]
-struct PEnv {
+struct SharedEnv {
     mappings: HashMap<String, MValue>,
     outer: Option<Env>,
 }
 
 impl Env {
     pub fn new(outer: Option<Env>) -> Self {
-        Env(Rc::new(RefCell::new(PEnv {
+        Env(Rc::new(RefCell::new(SharedEnv {
             mappings: HashMap::new(),
             outer
         })))
@@ -29,7 +26,7 @@ impl Env {
 
         for (i, b) in binds.iter().enumerate() {
             if binds[i] == "&" {
-                let final_expr = exprs.into_iter().skip(i).collect::<Vec<MValue>>();
+                let final_expr = exprs.into_iter().skip(i).collect();
                 mappings.insert(binds[i+1].clone(), MValue::list(final_expr));
                 break;
             } else {
@@ -37,7 +34,7 @@ impl Env {
             }
         }
 
-        Env(Rc::new(RefCell::new(PEnv {
+        Env(Rc::new(RefCell::new(SharedEnv {
             mappings,
             outer
         })))
@@ -53,7 +50,7 @@ impl Env {
         }
     }
 
-    pub fn set(&mut self, key: String, value: MValue) {
+    pub fn set(&self, key: String, value: MValue) {
         self.0.borrow_mut().mappings.insert(key, value);
     }
 }

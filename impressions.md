@@ -1,4 +1,4 @@
-Things are getting so nasty that I preferred to add Rc everywhere to allow for clones and avoid the type system. Could lifetimes solve the problem? Lifetimes are like cancer and would spread to every other part of the code probably, which is pain. The thing is that I really didn't explore if I really need Rc.
+Rc and RefCell are indeed necessary in the case of Env. The runtime can mutate Env through *def!* and both Lambda and other inner Env need to be able to read it at the same time. Thus, the inherent ownership model does not work here since it forces you to choose between an unique mutable reference or shared references.
 
 I would like that lisp functions were also part of the rust type system. Right now everything is encapsulated inside a big MValue.
 
