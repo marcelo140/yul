@@ -97,9 +97,45 @@ pub fn gte(args: Vec<MValue>) -> Result<MValue> {
     Ok(MValue::bool(x >= y))
 }
 
-pub fn prn(args: Vec<MValue>) -> Result<MValue> {
-    let x = args.get(0).map(ToString::to_string).unwrap_or_else(|| "".to_string());
+pub fn print_str(args: Vec<MValue>) -> Result<MValue> {
+    let x = args.iter()
+        .map(|x| x.pr_str(true))
+        .collect::<Vec<String>>();
+    
+    let r = x.join(" ");
+    // let r = args.get(0).map(|x| pr_str(x, true)).unwrap_or_else(|| "".to_string());
 
-    println!("{}", x);
+    Ok(MValue::string(r))
+}
+
+pub fn string(args: Vec<MValue>) -> Result<MValue> {
+    let x = args.iter()
+        .map(|x| x.pr_str(false))
+        .collect::<Vec<String>>();
+
+    let r = x.join("");
+
+    Ok(MValue::string(r))
+}
+
+pub fn prn(args: Vec<MValue>) -> Result<MValue> {
+    let x = args.iter()
+        .map(|x| x.pr_str(true))
+        .collect::<Vec<String>>();
+    
+    let r = x.join(" ");
+
+    println!("{}", r);
+    Ok(MValue::nil())
+}
+
+pub fn println(args: Vec<MValue>) -> Result<MValue> {
+    let x = args.iter()
+        .map(|x| x.pr_str(false))
+        .collect::<Vec<String>>();
+    
+    let r = x.join(" ");
+
+    println!("{}", r);
     Ok(MValue::nil())
 }

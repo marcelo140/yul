@@ -5,7 +5,7 @@ use rustyline::error::ReadlineError;
 
 use itertools::Itertools;
 
-use rust::reader::read_form;
+use rust::reader::*;
 use rust::types::*;
 use rust::env::Env;
 use rust::core::*;
@@ -120,7 +120,7 @@ fn eval(input: MValue, env: &mut Env) -> Result<MValue> {
 
 fn print(input: Result<MValue>) -> String {
     match input {
-        Ok(mvalue) => mvalue.to_string(),
+        Ok(mvalue) => mvalue.pr_str(true),
         Err(error) => error.to_string(),
     }
 }
@@ -149,7 +149,10 @@ fn main() {
     repl_env.set("<".to_string(), MValue::function(lt)); // to string
     repl_env.set(">=".to_string(), MValue::function(gte)); // to string
     repl_env.set("<=".to_string(), MValue::function(lte)); // to string
+    repl_env.set("pr-str".to_string(), MValue::function(print_str)); // to string
+    repl_env.set("str".to_string(), MValue::function(string)); // to string
     repl_env.set("prn".to_string(), MValue::function(prn)); // to string
+    repl_env.set("println".to_string(), MValue::function(println)); // to string
 
     rep("(def! not (fn* (a) (if a false true)))", &mut repl_env);
 
