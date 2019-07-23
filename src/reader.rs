@@ -63,12 +63,14 @@ fn pair_list(list: &mut Vec<MValue>) -> Result<HashMap<String, MValue>> {
     let mut hm = HashMap::new();
 
     while !list.is_empty() {
-        let v = list.pop().unwrap();
+        let v = list.pop().ok_or_else(|| Error::ParseError(
+                "Could not extract value for hashmap".to_string()))?;
 
         match list.pop() {
-            Some(ref k) if v.is_symbol() => hm.insert(k.cast_to_symbol()?, v),
-            Some(ref k) if v.is_string() => hm.insert(k.cast_to_string()?, v),
-            _ => return Err(Error::ParseError),
+            Some(ref k) if k.is_symbol() || k.is_string() || k.is_keyword() => 
+                hm.insert(k.cast_to_string()?, v),
+            r => return Err(Error::ParseError(
+                format!("Could not extract key for hashmap: {:?}", r))),
         };
     }
 

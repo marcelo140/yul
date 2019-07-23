@@ -136,6 +136,13 @@ impl MValue {
         }
     }
 
+    pub fn is_keyword(&self) -> bool {
+        match *self.0 {
+            MalVal::Keyword(_) => true,
+            _ => false,
+        }
+    }
+
     // TODO: cast_to_int and cast_to_list are not consistent in term of borrowing
     pub fn cast_to_int(&self) -> Result<i32> {
         match *self.0 {
@@ -144,16 +151,9 @@ impl MValue {
         }
     }
 
-    pub fn cast_to_symbol(&self) -> Result<String> {
-        match *self.0 {
-            MalVal::Sym(ref x) => Ok(x.clone()),
-            _ => Err(Error::EvalError(format!("{} is not a symbol", self))),
-        }
-    }
-
     pub fn cast_to_string(&self) -> Result<String> {
         match *self.0 {
-            MalVal::Keyword(ref x) | MalVal::Str(ref x) => Ok(x.clone()),
+            Sym(ref x) | Keyword(ref x) | Str(ref x) => Ok(x.clone()),
             _ => Err(Error::EvalError(format!("{} is not a string", self))),
         }
     }
@@ -241,7 +241,7 @@ impl Display for MValue {
 
 #[derive(Debug)]
 pub enum Error {
-    ParseError,
+    ParseError(String),
     EvalError(String),
     ArgsError,
     NoSymbolFound(String),
@@ -250,7 +250,7 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::ParseError => write!(f, "Parse error"),
+            Error::ParseError(s) => write!(f, "Parse error: {}", s),
             Error::EvalError(s) => write!(f, "Eval error: {}", s),
             Error::ArgsError => write!(f, "Args error"),
             Error::NoSymbolFound(s) => write!(f, "{} not found", s),
@@ -279,7 +279,7 @@ impl PartialEq for MalVal {
 
 impl From<pom::Error> for Error {
     fn from(_error: pom::Error) -> Error {
-        Error::ParseError
+        Error::ParseError("POM error".to_string())
     }
 }
 

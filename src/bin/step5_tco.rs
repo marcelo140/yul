@@ -12,7 +12,7 @@ use rust::core::*;
 
 fn eval_ast(value: MValue, env: &Env) -> Result<MValue> {
     if value.is_symbol() {
-        let x = value.cast_to_symbol()?;
+        let x = value.cast_to_string()?;
         env.get(&x)
            .ok_or_else(|| Error::NoSymbolFound(x))
     } else if value.is_list() {
@@ -56,9 +56,12 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
 
         match *l[0].0 {
             MalVal::Sym(ref sym) if sym == "do" => {
-                input = l.pop().unwrap();
-                let v = MValue::list(l[1..].to_vec());
+                input = l
+                    .pop()
+                    .ok_or_else(|| Error::EvalError(
+                            "No argument was provided".to_string()))?;
 
+                let v = MValue::list(l[1..].to_vec());
                 eval_ast(v, &env)?;
             },
 
@@ -78,7 +81,7 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 let parameters = l[1].clone()
                     .cast_to_list()?
                     .iter()
-                    .flat_map(MValue::cast_to_symbol)
+                    .flat_map(MValue::cast_to_string)
                     .collect::<Vec<String>>();
 
                 let body = l[2].clone();
@@ -87,7 +90,7 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
             },
 
             MalVal::Sym(ref sym) if sym == "def!" => {
-                let key = l[1].cast_to_symbol()?;
+                let key = l[1].cast_to_string()?;
                 let v = eval(l[2].clone(), &env)?; // malval clone
                 env.set(key, v.clone()); // malval clone
                 return Ok(v);
@@ -99,7 +102,7 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 let binds = l[1].clone().cast_to_list()?; // malval clone
 
                 for (bind, expr) in binds.clone().into_iter().tuples() {
-                    let bind = bind.cast_to_symbol()?;
+                    let bind = bind.cast_to_string()?;
                     let v = eval(expr, &env)?;
 
                     env.set(bind, v);
