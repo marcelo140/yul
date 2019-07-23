@@ -19,7 +19,7 @@ fn eval_ast(value: MValue, env: &mut Env) -> Result<MValue> {
         value.cast_to_list()?.into_iter()
            .map(|x| eval(x, &mut *env))
            .collect::<Result<_>>()
-           .map(MValue::list) 
+           .map(MValue::list)
     } else if value.is_hashmap() {
         value.cast_to_hashmap()?.into_iter()
            .map(|(k, v)| eval(v, &mut *env).map(|v| (k,v)) )
@@ -53,7 +53,7 @@ fn eval(input: MValue, env: &mut Env) -> Result<MValue> {
     match *l[0].0 {
         MalVal::Sym(ref sym) if sym == "do" => {
             let v = MValue::list(l.split_off(1));
-            eval_ast(v, env)?.cast_to_list()?.pop().ok_or(Error::EvalError)
+            eval_ast(v, env)?.cast_to_list()?.pop().ok_or_else(|| Error::EvalError("Expected additional element".to_string()))
         },
 
         MalVal::Sym(ref sym) if sym == "if" => {
@@ -69,7 +69,15 @@ fn eval(input: MValue, env: &mut Env) -> Result<MValue> {
         },
 
         MalVal::Sym(ref sym) if sym == "fn*" => {
-            Ok(MValue::nil())
+            let binds = l[1].clone()
+                .cast_to_list()?
+                .iter()
+                .flat_map(MValue::cast_to_symbol)
+                .collect::<Vec<String>>();
+
+            let body = l[2].clone();
+
+            Ok(MValue::lambda(env.clone(), binds, body))
         },
 
         MalVal::Sym(ref sym) if sym == "def!" => {
@@ -80,7 +88,7 @@ fn eval(input: MValue, env: &mut Env) -> Result<MValue> {
         },
 
         MalVal::Sym(ref sym) if sym == "let*" => {
-            let mut env = Env::new(Some(env));
+            let mut env = Env::new(Some(env.clone()), Vec::new(), Vec::new());
 
             let binds = l[1].clone().cast_to_list()?; // malval clone
 
@@ -99,8 +107,12 @@ fn eval(input: MValue, env: &mut Env) -> Result<MValue> {
 
             if let MalVal::Fun(fun) = *evaluated_list[0].0 {
                 fun(evaluated_list[1..].to_vec())
+            } else if let MalVal::Lambda(ref fun) = *evaluated_list[0].0 {
+                let (val, mut env) = fun.apply(evaluated_list[1..].to_vec());
+                eval(val, &mut env)
             } else {
-                Err(Error::EvalError)
+                Err(
+                    Error::EvalError(format!("Don't know how to eval this {:?}", evaluated_list)))
             }
         },
     }
@@ -123,7 +135,7 @@ fn main() {
     let mut ed = Editor::<()>::new();
     ed.load_history(".mal_history").ok();
 
-    let mut repl_env = Env::new(None);
+    let mut repl_env = Env::new(None, Vec::new(), Vec::new());
     repl_env.set("+".to_string(), MValue::function(add)); // to string
     repl_env.set("-".to_string(), MValue::function(sub)); // to string
     repl_env.set("*".to_string(), MValue::function(mul)); // to string
@@ -138,6 +150,8 @@ fn main() {
     repl_env.set(">=".to_string(), MValue::function(gte)); // to string
     repl_env.set("<=".to_string(), MValue::function(lte)); // to string
     repl_env.set("prn".to_string(), MValue::function(prn)); // to string
+
+    rep("(def! not (fn* (a) (if a false true)))", &mut repl_env);
 
     loop {
         let line = ed.readline("user> ");
