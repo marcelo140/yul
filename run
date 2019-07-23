@@ -1,2 +1,2 @@
 #!/bin/bash
-exec $(dirname $0)/target/debug/${STEP:-stepA_mal} "${@}"
+exec $(dirname $0)/target/debug/step5_tco "${@}"

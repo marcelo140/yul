@@ -31,21 +31,22 @@ pub enum MalVal {
 #[derive(Debug, Clone)]
 pub struct MClosure {
     env: Env,
-    binds: Vec<String>,
+    parameters: Vec<String>,
     body: MValue,
 }
 
 impl MClosure {
-    pub fn new(env: Env, binds: Vec<String>, body: MValue) -> Self {
+    pub fn new(env: Env, parameters: Vec<String>, body: MValue) -> Self {
         MClosure {
             env,
-            binds,
+            parameters,
             body,
         }
-    } 
+    }
+
     pub fn apply(&self, exprs: Vec<MValue>) -> (MValue, Env) {
         let copy = self.clone();
-        let env = Env::with_binds(Some(copy.env), copy.binds, exprs);
+        let env = Env::with_binds(Some(copy.env), copy.parameters, exprs);
 
         (copy.body, env)
     }
@@ -88,10 +89,10 @@ impl MValue {
         MValue(Rc::new(MalVal::Fun(value)))
     }
 
-    pub fn lambda(env: Env, binds: Vec<String>, body: MValue) -> MValue {
+    pub fn lambda(env: Env, parameters: Vec<String>, body: MValue) -> MValue {
         MValue(Rc::new(MalVal::Lambda(MClosure {
             env,
-            binds,
+            parameters,
             body,
         })))
     }
