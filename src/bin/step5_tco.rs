@@ -10,6 +10,8 @@ use rust::types::*;
 use rust::env::Env;
 use rust::core::*;
 
+use std::env::args;
+
 fn eval_ast(value: MValue, env: &Env) -> Result<MValue> {
     if value.is_symbol() {
         let x = value.cast_to_string()?;
@@ -115,8 +117,8 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 let evaluated_list = eval_ast(MValue::list(l), &env)?.cast_to_list()?;
                 let args = evaluated_list[1..].to_vec();
 
-                if let MalVal::Fun(fun) = *evaluated_list[0].0 {
-                    return fun(args);
+                if let MalVal::Fun(fun, ref env) = *evaluated_list[0].0 {
+                    return fun(args, env.clone());
                 } else if let MalVal::Lambda(ref fun) = *evaluated_list[0].0 {
                     let (body, new_env) = fun.apply(args);
                     input = body;
@@ -127,6 +129,19 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
             },
         }
     }
+}
+
+fn meval(args: Vec<MValue>, env: Option<Env>) -> Result<MValue> {
+    eval(args[0].clone(), &env.unwrap())
+}
+
+pub fn swap(args: Vec<MValue>, env: Option<Env>) -> Result<MValue> {
+    let mut args = args.clone();
+    let atom = args.remove(0);
+    args.insert(1, atom.atom_deref()?);
+
+    let v = eval(MValue::list(args), &env.unwrap())?;
+    atom.atom_reset(v)
 }
 
 fn print(input: Result<MValue>) -> String {
@@ -146,26 +161,48 @@ fn main() {
     let mut ed = Editor::<()>::new();
     ed.load_history(".mal_history").ok();
 
+
     let repl_env = Env::new(None);
-    repl_env.set("+".to_string(), MValue::function(add));
-    repl_env.set("-".to_string(), MValue::function(sub));
-    repl_env.set("*".to_string(), MValue::function(mul));
-    repl_env.set("/".to_string(), MValue::function(div));
-    repl_env.set("list".to_string(), MValue::function(list));
-    repl_env.set("list?".to_string(), MValue::function(list_q));
-    repl_env.set("empty?".to_string(), MValue::function(empty_q));
-    repl_env.set("count".to_string(), MValue::function(count));
-    repl_env.set("=".to_string(), MValue::function(eq));
-    repl_env.set(">".to_string(), MValue::function(gt));
-    repl_env.set("<".to_string(), MValue::function(lt));
-    repl_env.set(">=".to_string(), MValue::function(gte));
-    repl_env.set("<=".to_string(), MValue::function(lte));
-    repl_env.set("pr-str".to_string(), MValue::function(print_str));
-    repl_env.set("str".to_string(), MValue::function(string));
-    repl_env.set("prn".to_string(), MValue::function(prn));
-    repl_env.set("println".to_string(), MValue::function(println));
+    repl_env.set("+".to_string(), MValue::function(add, None));
+    repl_env.set("-".to_string(), MValue::function(sub, None));
+    repl_env.set("*".to_string(), MValue::function(mul, None));
+    repl_env.set("/".to_string(), MValue::function(div, None));
+    repl_env.set("list".to_string(), MValue::function(list, None));
+    repl_env.set("list?".to_string(), MValue::function(list_q, None));
+    repl_env.set("empty?".to_string(), MValue::function(empty_q, None));
+    repl_env.set("count".to_string(), MValue::function(count, None));
+    repl_env.set("=".to_string(), MValue::function(eq, None));
+    repl_env.set(">".to_string(), MValue::function(gt, None));
+    repl_env.set("<".to_string(), MValue::function(lt, None));
+    repl_env.set(">=".to_string(), MValue::function(gte, None));
+    repl_env.set("<=".to_string(), MValue::function(lte, None));
+    repl_env.set("pr-str".to_string(), MValue::function(print_str, None));
+    repl_env.set("str".to_string(), MValue::function(string, None));
+    repl_env.set("prn".to_string(), MValue::function(prn, None));
+    repl_env.set("println".to_string(), MValue::function(println, None));
+    repl_env.set("read-string".to_string(), MValue::function(read_str, None));
+    repl_env.set("slurp".to_string(), MValue::function(slurp, None));
+    repl_env.set("atom".to_string(), MValue::function(atom, None));
+    repl_env.set("atom?".to_string(), MValue::function(atom_q, None));
+    repl_env.set("deref".to_string(), MValue::function(deref, None));
+    repl_env.set("reset!".to_string(), MValue::function(reset, None));
+    repl_env.set("swap!".to_string(), MValue::function(swap, Some(repl_env.clone())));
+    repl_env.set("eval".to_string(), MValue::function(meval, Some(repl_env.clone())));
 
     rep("(def! not (fn* (a) (if a false true)))", &repl_env);
+    rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))"
+        , &repl_env);
+
+    let mut argv = args().skip(1);
+    let path = argv.next();
+    let margv = argv.map(MValue::string).collect();
+    repl_env.set("*ARGV*".to_string(), MValue::list(margv));
+
+    if let Some(path) = path {
+        let command = format!("(load-file \"{}\")", path);
+        rep(&command, &repl_env);
+        return;
+    }
 
     loop {
         let line = ed.readline("user> ");

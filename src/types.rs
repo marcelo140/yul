@@ -2,11 +2,12 @@ use MalVal::*;
 
 use std::collections::HashMap;
 use std::fmt::{self, Display};
+use std::cell::RefCell;
 
 use std::rc::Rc;
 use crate::env::Env;
 
-pub type FnExpr = fn(Vec<MValue>) -> Result<MValue>;
+pub type FnExpr = fn(Vec<MValue>, Option<Env>) -> Result<MValue>;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
@@ -23,7 +24,8 @@ pub enum MalVal {
     Sym(String),
     Str(String),
     Keyword(String),
-    Fun(FnExpr),
+    Fun(FnExpr, Option<Env>),
+    Atom(RefCell<MValue>),
     Lambda(MClosure),
     Nil,
 }
@@ -85,8 +87,12 @@ impl MValue {
         MValue(Rc::new(MalVal::Keyword(value)))
     }
 
-    pub fn function(value: FnExpr) -> MValue {
-        MValue(Rc::new(MalVal::Fun(value)))
+    pub fn atom(value: MValue) -> MValue {
+        MValue(Rc::new(MalVal::Atom(RefCell::new(value))))
+    }
+
+    pub fn function(value: FnExpr, env: Option<Env>) -> MValue {
+        MValue(Rc::new(MalVal::Fun(value, env)))
     }
 
     pub fn lambda(env: Env, parameters: Vec<String>, body: MValue) -> MValue {
@@ -143,11 +149,35 @@ impl MValue {
         }
     }
 
+    pub fn is_atom(&self) -> bool {
+        match *self.0 {
+            MalVal::Atom(_) => true,
+            _ => false,
+        }
+    }
+
     // TODO: cast_to_int and cast_to_list are not consistent in term of borrowing
     pub fn cast_to_int(&self) -> Result<i32> {
         match *self.0 {
             MalVal::Int(x) => Ok(x),
             _ => Err(Error::EvalError(format!("{} is not a list!", self))),
+        }
+    }
+
+    pub fn atom_deref(&self) -> Result<MValue> {
+        match *self.0 {
+            MalVal::Atom(ref x) => Ok(x.borrow().clone()),
+            _ => Err(Error::EvalError(format!("{} is not an atom!", self))),
+        }
+    }
+
+    pub fn atom_reset(&self, new: MValue) -> Result<MValue> {
+        match *self.0 {
+            MalVal::Atom(ref x) => {
+                x.replace(new.clone());
+                Ok(new)
+            },
+            _ => Err(Error::EvalError(format!("{} is not an atom!", self))),
         }
     }
 
@@ -162,13 +192,6 @@ impl MValue {
         match *self.0 {
             MalVal::Bool(x) => Ok(x),
             _ => Err(Error::EvalError(format!("{} is not a bool", self))),
-        }
-    }
-
-    pub fn cast_to_fn(&self) -> Result<FnExpr> {
-        match *self.0 {
-            MalVal::Fun(x) => Ok(x),
-            _ => Err(Error::EvalError(format!("{} is not a function", self))),
         }
     }
 
@@ -192,6 +215,7 @@ impl MValue {
             Bool(ref b) => b.to_string(),
             Sym(ref s) => s.to_string(),
             Keyword(ref s) => format!(":{}", s),
+            Atom(ref v) => format!("(atom {})", v.borrow()),
             Str(ref s) => {
                 if readably {
                     format!("\"{}\"", escape_str(s))
@@ -208,7 +232,7 @@ impl MValue {
                     .collect::<Vec<MValue>>();
                 print_sequence(&l, "{", "}", readably)
             },
-            Fun(_) | Lambda(_) => "#<function>".to_string(),
+            Fun(_,_) | Lambda(_) => "#<function>".to_string(),
         }
     }
 }
@@ -245,6 +269,7 @@ pub enum Error {
     EvalError(String),
     ArgsError,
     NoSymbolFound(String),
+    IoError(String),
 }
 
 impl Display for Error {
@@ -254,6 +279,7 @@ impl Display for Error {
             Error::EvalError(s) => write!(f, "Eval error: {}", s),
             Error::ArgsError => write!(f, "Args error"),
             Error::NoSymbolFound(s) => write!(f, "{} not found", s),
+            Error::IoError(s) => write!(f, "IO Error: {}", s),
         }
     }
 }
@@ -278,8 +304,13 @@ impl PartialEq for MalVal {
 }
 
 impl From<pom::Error> for Error {
-    fn from(_error: pom::Error) -> Error {
-        Error::ParseError("POM error".to_string())
+    fn from(error: pom::Error) -> Error {
+        Error::ParseError(error.to_string())
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Error {
+        Error::ParseError(error.to_string())
+    }
+}

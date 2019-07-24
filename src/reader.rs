@@ -10,11 +10,12 @@ fn spaces<'a>() -> Parser<'a, u8, ()> {
 }
 
 fn comment<'a>() -> Parser<'a, u8, ()> {
-    sym(b';') * none_of(b"\r\n").discard()
+    sym(b';') * none_of(b"\r\n").repeat(0..) * spaces()
 }
 
+
 fn ignored<'a>() -> Parser<'a, u8, ()> {
-    spaces() | comment()
+    comment() | spaces()
 }
 
 fn symbol(term: u8) -> bool {
@@ -31,7 +32,7 @@ fn escaped<'a>() -> Parser<'a, u8, u8> {
 }
 
 pub fn read_form<'a>() -> Parser<'a, u8, MValue> {
-    ignored() * (read_atom() | read_list() | read_macro() | read_vector() | read_hashmap())
+    ignored() * (read_atom() | read_list() | read_macro() | read_vector() | read_hashmap()) - ignored()
 }
 
 fn delimited<'a, T>(
@@ -187,3 +188,19 @@ fn test_read_keyword() {
     assert_eq!(value, MValue::keyword("ok".to_string()));
 }
 
+#[test]
+fn test_comment() {
+    let value = comment().parse("; nice".as_bytes()).unwrap();
+    assert_eq!(value, ());
+
+    let value = read_form().parse("5 ;; nice".as_bytes()).unwrap();
+    assert_eq!(value, MValue::integer(5));
+
+    let value = read_form().parse(";; Start
+                                   (+ ;; sum
+                                       3 5)
+                                   ;; End".as_bytes()).unwrap();
+    assert_eq!(value, MValue::list(
+            vec![MValue::symbol("+".to_string()), 
+                 MValue::integer(3), MValue::integer(5)]));
+}
