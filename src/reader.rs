@@ -24,7 +24,7 @@ fn symbol(term: u8) -> bool {
 
 fn escaped<'a>() -> Parser<'a, u8, u8> {
     let p = sym(b'\\') * one_of(b"\\\"n");
-    
+
     p.map(|v| match v {
         b'n' => b'\n',
         _ => v,
@@ -36,10 +36,10 @@ pub fn read_form<'a>() -> Parser<'a, u8, MValue> {
 }
 
 fn delimited<'a, T>(
-    start: Parser<'a, u8, T>, 
+    start: Parser<'a, u8, T>,
     end: Parser<'a, u8, T>,
-    elem: Parser<'a, u8, MValue>) -> Parser<'a, u8, Vec<MValue>> 
-where 
+    elem: Parser<'a, u8, MValue>) -> Parser<'a, u8, Vec<MValue>>
+where
     T: 'a,
 {
     start * ignored() * list(elem, ignored()) - ignored() - end
@@ -68,7 +68,7 @@ fn pair_list(list: &mut Vec<MValue>) -> Result<HashMap<String, MValue>> {
                 "Could not extract value for hashmap".to_string()))?;
 
         match list.pop() {
-            Some(ref k) if k.is_symbol() || k.is_string() || k.is_keyword() => 
+            Some(ref k) if k.is_symbol() || k.is_string() || k.is_keyword() =>
                 hm.insert(k.cast_to_string()?, v),
             r => return Err(Error::ParseError(
                 format!("Could not extract key for hashmap: {:?}", r))),
@@ -101,11 +101,11 @@ fn read_metadata<'a>() -> Parser<'a, u8, MValue> {
 }
 
 fn read_macro<'a>() -> Parser<'a, u8, MValue> {
-    read_splice_unquote() 
-        | read_unquote() 
-        | read_quote() 
-        | read_quasiquote() 
-        | read_deref() 
+    read_splice_unquote()
+        | read_unquote()
+        | read_quote()
+        | read_quasiquote()
+        | read_deref()
         | read_metadata()
 }
 
@@ -157,7 +157,7 @@ fn read_string<'a>() -> Parser<'a, u8, MValue> {
 }
 
 fn read_keyword<'a>() -> Parser<'a, u8, MValue> {
-    let p = sym(b':') * 
+    let p = sym(b':') *
         (is_a(symbol) | is_a(alpha)) + (is_a(symbol) | is_a(alphanum)).repeat(0..);
 
     p.map(|(h, mut t)| { t.insert(0, h); t })
@@ -184,7 +184,7 @@ fn read_symbol<'a>() -> Parser<'a, u8, MValue> {
 #[test]
 fn test_read_keyword() {
     let value = read_keyword().parse(":ok".as_bytes()).unwrap();
-    
+
     assert_eq!(value, MValue::keyword("ok".to_string()));
 }
 
@@ -201,6 +201,6 @@ fn test_comment() {
                                        3 5)
                                    ;; End".as_bytes()).unwrap();
     assert_eq!(value, MValue::list(
-            vec![MValue::symbol("+".to_string()), 
+            vec![MValue::symbol("+".to_string()),
                  MValue::integer(3), MValue::integer(5)]));
 }

@@ -79,6 +79,14 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 }
             },
 
+            MalVal::Sym(ref sym) if sym == "quote" => {
+                return Ok(l[1].clone());
+            },
+
+            MalVal::Sym(ref sym) if sym == "quasiquote" => {
+                input = quasiquote(l[1].clone())?;
+            },
+
             MalVal::Sym(ref sym) if sym == "fn*" => {
                 let parameters = l[1].clone()
                     .cast_to_list()?
@@ -129,6 +137,43 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
             },
         }
     }
+}
+
+fn is_nonempty_list(value: &MValue) -> bool {
+    (value.is_list() || value.is_vector()) && !value.clone().cast_to_list().unwrap().is_empty()
+}
+
+fn quasiquote(value: MValue) -> Result<MValue> {
+    if is_nonempty_list(&value) == false {
+        return Ok(MValue::list(vec![MValue::symbol("quote".to_string()), value.clone()]));
+    } 
+
+    let ast = value.clone().cast_to_list()?;
+
+    if let MalVal::Sym(ref unquote) = *ast[0].0 {
+        if unquote == "unquote" {
+            return Ok(value.cast_to_list()?[1].clone());
+        }
+    }
+
+    let rest = MValue::list(ast[1..].to_vec());
+
+    if is_nonempty_list(&ast[0]) {
+        let m1 = ast[0].clone().cast_to_list()?;
+        if let MalVal::Sym(ref splice_unquote) = *m1[0].0 {
+            if splice_unquote == "splice-unquote" {
+                return Ok(MValue::list(
+                        vec![MValue::symbol("concat".to_string()), 
+                        m1[1].clone(),
+                        quasiquote(rest)?]));
+            }
+        }
+    }
+
+    Ok(MValue::list(vec![
+                    MValue::symbol("cons".to_string()), 
+                    quasiquote(ast[0].clone())?,
+                    quasiquote(rest)?]))
 }
 
 fn meval(args: Vec<MValue>, env: Option<Env>) -> Result<MValue> {
@@ -187,6 +232,8 @@ fn main() {
     repl_env.set("deref".to_string(), MValue::function(deref, None));
     repl_env.set("reset!".to_string(), MValue::function(reset, None));
     repl_env.set("swap!".to_string(), MValue::function(swap, Some(repl_env.clone())));
+    repl_env.set("cons".to_string(), MValue::function(cons, Some(repl_env.clone())));
+    repl_env.set("concat".to_string(), MValue::function(concat, Some(repl_env.clone())));
     repl_env.set("eval".to_string(), MValue::function(meval, Some(repl_env.clone())));
 
     rep("(def! not (fn* (a) (if a false true)))", &repl_env);

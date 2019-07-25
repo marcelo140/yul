@@ -104,7 +104,7 @@ pub fn print_str(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     let x = args.iter()
         .map(|x| x.pr_str(true))
         .collect::<Vec<String>>();
-    
+
     let r = x.join(" ");
 
     Ok(MValue::string(r))
@@ -124,7 +124,7 @@ pub fn prn(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     let x = args.iter()
         .map(|x| x.pr_str(true))
         .collect::<Vec<String>>();
-    
+
     let r = x.join(" ");
 
     println!("{}", r);
@@ -135,7 +135,7 @@ pub fn println(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     let x = args.iter()
         .map(|x| x.pr_str(false))
         .collect::<Vec<String>>();
-    
+
     let r = x.join(" ");
 
     println!("{}", r);
@@ -171,4 +171,21 @@ pub fn deref(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
 pub fn reset(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     args[0].atom_reset(args[1].clone())
+}
+
+pub fn cons(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let mut v = args[1].clone().cast_to_list()?;
+    v.insert(0, args[0].clone());
+
+    Ok(MValue::list(v))
+}
+
+pub fn concat(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let mut v = Vec::new();
+
+    for arg in args {
+        v.append(&mut arg.cast_to_list()?);
+    }
+
+    Ok(MValue::list(v))
 }
