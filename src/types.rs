@@ -12,7 +12,7 @@ pub type FnExpr = fn(Vec<MValue>, Option<Env>) -> Result<MValue>;
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct MValue(pub Rc<MalVal>);
+pub struct MValue(pub Rc<MalVal>, bool);
 
 #[derive(Debug, Clone)]
 pub enum MalVal {
@@ -24,10 +24,16 @@ pub enum MalVal {
     Sym(String),
     Str(String),
     Keyword(String),
-    Fun(FnExpr, Option<Env>),
+    Fun(FnExpr, Option<Env>), // bool = is macro?
     Atom(RefCell<MValue>),
     Lambda(MClosure),
     Nil,
+}
+
+impl Default for MValue {
+    fn default() -> Self {
+        MValue(Rc::new(MalVal::Nil), false)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -56,43 +62,43 @@ impl MClosure {
 
 impl MValue {
     pub fn integer(value: i32) -> MValue {
-        MValue(Rc::new(MalVal::Int(value)))
+        MValue(Rc::new(MalVal::Int(value)), false)
     }
 
     pub fn bool(value: bool) -> MValue {
-        MValue(Rc::new(MalVal::Bool(value)))
+        MValue(Rc::new(MalVal::Bool(value)), false)
     }
 
     pub fn list(value: Vec<MValue>) -> MValue {
-        MValue(Rc::new(MalVal::List(value)))
+        MValue(Rc::new(MalVal::List(value)), false)
     }
 
     pub fn vector(value: Vec<MValue>) -> MValue {
-        MValue(Rc::new(MalVal::Vector(value)))
+        MValue(Rc::new(MalVal::Vector(value)), false)
     }
 
     pub fn hashmap(value: HashMap<String, MValue>) -> MValue {
-        MValue(Rc::new(MalVal::HashMap(value)))
+        MValue(Rc::new(MalVal::HashMap(value)), false)
     }
 
     pub fn symbol(value: String) -> MValue {
-        MValue(Rc::new(MalVal::Sym(value)))
+        MValue(Rc::new(MalVal::Sym(value)), false)
     }
 
     pub fn string<T: Into<String>>(value: T) -> MValue {
-        MValue(Rc::new(MalVal::Str(value.into())))
+        MValue(Rc::new(MalVal::Str(value.into())), false)
     }
 
     pub fn keyword(value: String) -> MValue {
-        MValue(Rc::new(MalVal::Keyword(value)))
+        MValue(Rc::new(MalVal::Keyword(value)), false)
     }
 
     pub fn atom(value: MValue) -> MValue {
-        MValue(Rc::new(MalVal::Atom(RefCell::new(value))))
+        MValue(Rc::new(MalVal::Atom(RefCell::new(value))), false)
     }
 
     pub fn function(value: FnExpr, env: Option<Env>) -> MValue {
-        MValue(Rc::new(MalVal::Fun(value, env)))
+        MValue(Rc::new(MalVal::Fun(value, env)), false)
     }
 
     pub fn lambda(env: Env, parameters: Vec<String>, body: MValue) -> MValue {
@@ -100,11 +106,18 @@ impl MValue {
             env,
             parameters,
             body,
-        })))
+        })), false)
     }
 
     pub fn nil() -> MValue {
-        MValue(Rc::new(MalVal::Nil))
+        MValue(Rc::new(MalVal::Nil), false)
+    }
+
+    pub fn is_lambda(&self) -> bool {
+        match *self.0 {
+            MalVal::Lambda(_) => true,
+            _ => false,
+        }
     }
 
     pub fn is_list(&self) -> bool {
@@ -124,6 +137,31 @@ impl MValue {
     pub fn is_vector(&self) -> bool {
         match *self.0 {
             MalVal::Vector(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_macro(&self) -> bool {
+        self.1
+    }
+
+    pub fn is_macro_call(&self, env: &Env) -> bool {
+        match *self.0 {
+            MalVal::List(ref l) => {
+                if l.is_empty() {
+                    return false;
+                }
+
+                match *l[0].0 {
+                    MalVal::Sym(ref symbol) => {
+                        let mapping = env.get(&symbol);
+                        mapping
+                            .map(|v| v.is_lambda() && v.is_macro())
+                            .unwrap_or(false)
+                    },
+                    _ => false,
+                }
+            },
             _ => false,
         }
     }
@@ -154,6 +192,10 @@ impl MValue {
             MalVal::Atom(_) => true,
             _ => false,
         }
+    }
+
+    pub fn set_macro(&mut self) {
+        self.1 = true;
     }
 
     // TODO: cast_to_int and cast_to_list are not consistent in term of borrowing

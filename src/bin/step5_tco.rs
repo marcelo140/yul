@@ -34,7 +34,7 @@ fn eval_ast(value: MValue, env: &Env) -> Result<MValue> {
            .map(MValue::vector)
     } else {
         Ok(value)
-    }
+   }
 }
 
 fn read(input: &str) -> Result<MValue> {
@@ -46,6 +46,12 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
     let mut input = input.clone();
 
     loop {
+        if !input.is_list() {
+            return eval_ast(input, &env);
+        }
+
+        input = macro_expand(input, &env)?;
+
         if !input.is_list() {
             return eval_ast(input, &env);
         }
@@ -79,6 +85,10 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 }
             },
 
+            MalVal::Sym(ref sym) if sym == "macroexpand" => {
+                return macro_expand(l[1].clone(), &env);
+            },
+
             MalVal::Sym(ref sym) if sym == "quote" => {
                 return Ok(l[1].clone());
             },
@@ -106,6 +116,14 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 return Ok(v);
             },
 
+            MalVal::Sym(ref sym) if sym == "defmacro!" => {
+                let key = l[1].cast_to_string()?;
+                let mut v = eval(l[2].clone(), &env)?; // malval clone
+                v.set_macro();
+                env.set(key, v.clone()); // malval clone
+                return Ok(v);
+            },
+
             MalVal::Sym(ref sym) if sym == "let*" => {
                 env = Env::new(Some(env.clone()));
 
@@ -121,6 +139,7 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 input = l[2].clone();
             },
 
+
             _ => {
                 let evaluated_list = eval_ast(MValue::list(l), &env)?.cast_to_list()?;
                 let args = evaluated_list[1..].to_vec();
@@ -132,7 +151,7 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                     input = body;
                     env = new_env;
                 } else {
-                    return Err(Error::EvalError(format!("{:?}", evaluated_list)));
+                    return Err(Error::EvalError(format!("Could not eval: {:?}", evaluated_list)));
                 }
             },
         }
@@ -144,9 +163,9 @@ fn is_nonempty_list(value: &MValue) -> bool {
 }
 
 fn quasiquote(value: MValue) -> Result<MValue> {
-    if is_nonempty_list(&value) == false {
+    if !is_nonempty_list(&value) {
         return Ok(MValue::list(vec![MValue::symbol("quote".to_string()), value.clone()]));
-    } 
+    }
 
     let ast = value.clone().cast_to_list()?;
 
@@ -163,7 +182,7 @@ fn quasiquote(value: MValue) -> Result<MValue> {
         if let MalVal::Sym(ref splice_unquote) = *m1[0].0 {
             if splice_unquote == "splice-unquote" {
                 return Ok(MValue::list(
-                        vec![MValue::symbol("concat".to_string()), 
+                        vec![MValue::symbol("concat".to_string()),
                         m1[1].clone(),
                         quasiquote(rest)?]));
             }
@@ -171,7 +190,7 @@ fn quasiquote(value: MValue) -> Result<MValue> {
     }
 
     Ok(MValue::list(vec![
-                    MValue::symbol("cons".to_string()), 
+                    MValue::symbol("cons".to_string()),
                     quasiquote(ast[0].clone())?,
                     quasiquote(rest)?]))
 }
@@ -187,6 +206,23 @@ pub fn swap(args: Vec<MValue>, env: Option<Env>) -> Result<MValue> {
 
     let v = eval(MValue::list(args), &env.unwrap())?;
     atom.atom_reset(v)
+}
+
+pub fn macro_expand(value: MValue, env: &Env) -> Result<MValue> {
+    let mut value = value;
+
+    while value.is_macro_call(&env) {
+        let list = value.clone().cast_to_list()?;
+        let lambda = env.get(&list[0].cast_to_string()?).unwrap();
+        if let MalVal::Lambda(ref fun) = *lambda.0 {
+            let args = list[1..].to_vec();
+            let (body, new_env) = fun.apply(args);
+            value = eval(body, &new_env)?;
+        }
+
+    }
+
+    Ok(value)
 }
 
 fn print(input: Result<MValue>) -> String {
@@ -232,13 +268,18 @@ fn main() {
     repl_env.set("deref".to_string(), MValue::function(deref, None));
     repl_env.set("reset!".to_string(), MValue::function(reset, None));
     repl_env.set("swap!".to_string(), MValue::function(swap, Some(repl_env.clone())));
-    repl_env.set("cons".to_string(), MValue::function(cons, Some(repl_env.clone())));
-    repl_env.set("concat".to_string(), MValue::function(concat, Some(repl_env.clone())));
+    repl_env.set("cons".to_string(), MValue::function(cons, None));
+    repl_env.set("concat".to_string(), MValue::function(concat, None));
+    repl_env.set("nth".to_string(), MValue::function(nth, None));
+    repl_env.set("first".to_string(), MValue::function(first, None));
+    repl_env.set("rest".to_string(), MValue::function(rest, None));
     repl_env.set("eval".to_string(), MValue::function(meval, Some(repl_env.clone())));
 
     rep("(def! not (fn* (a) (if a false true)))", &repl_env);
     rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))"
         , &repl_env);
+    rep("(defmacro! or (fn* (& l) (if (not (empty? l)) (if (first l) (first l) `(or ~@(rest l))) nil)))", &repl_env);
+    rep("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))", &repl_env);
 
     let mut argv = args().skip(1);
     let path = argv.next();

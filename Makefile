@@ -21,3 +21,6 @@ step6_file:
 
 step7_quote:
 	cargo build --bin step5_tco
+
+step8_macros:
+	cargo build --bin step5_tco

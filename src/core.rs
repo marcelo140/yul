@@ -189,3 +189,45 @@ pub fn concat(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
     Ok(MValue::list(v))
 }
+
+pub fn nth(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let k = usize::try_from(args[1].cast_to_int()?).unwrap();
+
+    args[0].clone()
+        .cast_to_list()?
+        .get(k)
+        .cloned()
+        .ok_or_else(|| Error::EvalError("Out of bonds".to_string()))
+}
+
+pub fn first(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let value = &args[0];
+    if !value.is_list() && !value.is_vector() {
+        Ok(MValue::nil())
+    } else {
+        let list = value.clone().cast_to_list()?;
+        if list.is_empty() {
+            return Ok(MValue::nil());
+        }
+
+        Ok(list[0].clone())
+    }
+}
+
+pub fn rest(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let value = &args[0];
+    let l = vec![];
+
+    if !value.is_list() && !value.is_vector() {
+        Ok(MValue::list(l))
+    } else {
+        let list = value.clone().cast_to_list()?;
+
+        if list.is_empty() {
+            return Ok(MValue::list(l));
+        }
+
+        let l = list[1..].to_vec();
+        Ok(MValue::list(l))
+    }
+}
