@@ -26,7 +26,7 @@ fn eval_ast(value: MValue, env: &Env) -> Result<MValue> {
         value.cast_to_hashmap()?.into_iter()
            .map(|(k, v)| eval(v, &env).map(|v| (k,v)) )
            .collect::<Result<_>>()
-           .map(MValue::hashmap)
+           .map(MValue::from_hashmap)
     } else if value.is_vector() {
         value.cast_to_list()?.into_iter()
            .map(|x| eval(x, &env))
@@ -114,6 +114,23 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 let v = eval(l[2].clone(), &env)?; // malval clone
                 env.set(key, v.clone()); // malval clone
                 return Ok(v);
+            },
+
+            MalVal::Sym(ref sym) if sym == "try*" => {
+                let try_expr = l[1].clone();
+
+                let result = eval(try_expr, &env);
+
+                if result.is_ok() || l.len() < 3 {
+                    return result;
+                }
+
+                let error = result.unwrap_err();
+                let catch_block = l[2].clone().cast_to_list()?;
+                let err_symbol = catch_block[1].clone().cast_to_string()?;
+                let catch_expr = catch_block[2].clone();
+                env.set(err_symbol, error.catch());
+                return eval(catch_expr, &env);
             },
 
             MalVal::Sym(ref sym) if sym == "defmacro!" => {
@@ -208,6 +225,44 @@ pub fn swap(args: Vec<MValue>, env: Option<Env>) -> Result<MValue> {
     atom.atom_reset(v)
 }
 
+pub fn apply(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let mut args = args.clone();
+    let f = args.remove(0);
+
+    let mut last_arguments = args.pop()
+        .ok_or_else(|| Error::EvalError("Not enough arguments".to_string()))?
+        .cast_to_list()?;
+
+    args.append(&mut last_arguments);
+
+    if let MalVal::Fun(fun, ref env) = *f.0 {
+        return fun(args, env.clone());
+    } else if let MalVal::Lambda(ref fun) = *f.0 {
+        let (body, new_env) = fun.apply(args);
+        return eval(body, &new_env);
+    }
+
+    Err(Error::EvalError(format!("No function provided: {:?}", *f.0)))
+}
+
+pub fn map(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let f = args[0].clone();
+    let values: Vec<MValue> = args[1].clone().cast_to_list()?;
+
+    values.iter()
+        .map(|v| {
+            if let MalVal::Fun(fun, ref env) = *f.0 {
+                return fun(vec![v.clone()], env.clone());
+            } else if let MalVal::Lambda(ref fun) = *f.0 {
+                let (body, new_env) = fun.apply(vec![v.clone()]);
+                return eval(body, &new_env);
+            }
+            Err(Error::EvalError(format!("No function provided: {:?}", *f.0)))
+        })
+        .collect::<Result<Vec<MValue>>>()
+        .map(MValue::list)
+}
+
 pub fn macro_expand(value: MValue, env: &Env) -> Result<MValue> {
     let mut value = value;
 
@@ -249,8 +304,17 @@ fn main() {
     repl_env.set("*".to_string(), MValue::function(mul, None));
     repl_env.set("/".to_string(), MValue::function(div, None));
     repl_env.set("list".to_string(), MValue::function(list, None));
+    repl_env.set("vector".to_string(), MValue::function(vector, None));
+    repl_env.set("hash-map".to_string(), MValue::function(hashmap, None));
+    repl_env.set("symbol".to_string(), MValue::function(symbol, None));
+    repl_env.set("keyword".to_string(), MValue::function(keyword, None));
     repl_env.set("list?".to_string(), MValue::function(list_q, None));
+    repl_env.set("vector?".to_string(), MValue::function(vector_q, None));
+    repl_env.set("sequential?".to_string(), MValue::function(sequential_q, None));
+    repl_env.set("map?".to_string(), MValue::function(map_q, None));
     repl_env.set("empty?".to_string(), MValue::function(empty_q, None));
+    repl_env.set("assoc".to_string(), MValue::function(assoc, None));
+    repl_env.set("dissoc".to_string(), MValue::function(dissoc, None));
     repl_env.set("count".to_string(), MValue::function(count, None));
     repl_env.set("=".to_string(), MValue::function(eq, None));
     repl_env.set(">".to_string(), MValue::function(gt, None));
@@ -273,12 +337,24 @@ fn main() {
     repl_env.set("nth".to_string(), MValue::function(nth, None));
     repl_env.set("first".to_string(), MValue::function(first, None));
     repl_env.set("rest".to_string(), MValue::function(rest, None));
+    repl_env.set("throw".to_string(), MValue::function(throw, None));
+    repl_env.set("apply".to_string(), MValue::function(apply, None));
+    repl_env.set("map".to_string(), MValue::function(map, None));
+    repl_env.set("symbol?".to_string(), MValue::function(symbol_q, None));
+    repl_env.set("nil?".to_string(), MValue::function(nil_q, None));
+    repl_env.set("true?".to_string(), MValue::function(true_q, None));
+    repl_env.set("false?".to_string(), MValue::function(false_q, None));
+    repl_env.set("keyword?".to_string(), MValue::function(keyword_q, None));
+    repl_env.set("get".to_string(), MValue::function(get, None));
+    repl_env.set("contains?".to_string(), MValue::function(contains_q, None));
+    repl_env.set("keys".to_string(), MValue::function(keys, None));
+    repl_env.set("vals".to_string(), MValue::function(values, None));
     repl_env.set("eval".to_string(), MValue::function(meval, Some(repl_env.clone())));
 
     rep("(def! not (fn* (a) (if a false true)))", &repl_env);
     rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))"
         , &repl_env);
-    rep("(defmacro! or (fn* (& l) (if (not (empty? l)) (if (first l) (first l) `(or ~@(rest l))) nil)))", &repl_env);
+    rep("(defmacro! or (fn* (& l) (if (not (empty? l)) (list 'if (first l) (first l) (cons 'or (rest l))))))", &repl_env);
     rep("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))", &repl_env);
 
     let mut argv = args().skip(1);
@@ -299,11 +375,10 @@ fn main() {
             Ok(line) => {
                 println!("{}", &rep(&line, &repl_env));
                 ed.add_history_entry(line);
+                ed.save_history(".mal_history").ok();
             },
             Err(ReadlineError::Eof) => break,
             Err(err) => println!("Error: {:?}", err),
         }
     }
-
-    ed.save_history(".mal_history").ok();
 }

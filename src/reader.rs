@@ -1,8 +1,6 @@
 use pom::parser::*;
 use pom::char_class::*;
 
-use std::collections::HashMap;
-
 use crate::types::*;
 
 fn spaces<'a>() -> Parser<'a, u8, ()> {
@@ -53,29 +51,9 @@ fn read_vector<'a>() -> Parser<'a, u8, MValue> {
     delimited(sym(b'['), sym(b']'), call(read_form)).map(MValue::vector)
 }
 
-// TODO: Refactor hashmap reader. Get rid of unwraps
 fn read_hashmap<'a>() -> Parser<'a, u8, MValue> {
     (sym(b'{') * ignored() * list(call(read_form), ignored()) - ignored() - sym(b'}'))
-        .map(|mut v| pair_list(&mut v).unwrap())
-        .map(MValue::hashmap)
-}
-
-fn pair_list(list: &mut Vec<MValue>) -> Result<HashMap<String, MValue>> {
-    let mut hm = HashMap::new();
-
-    while !list.is_empty() {
-        let v = list.pop().ok_or_else(|| Error::ParseError(
-                "Could not extract value for hashmap".to_string()))?;
-
-        match list.pop() {
-            Some(ref k) if k.is_symbol() || k.is_string() || k.is_keyword() =>
-                hm.insert(k.cast_to_string()?, v),
-            r => return Err(Error::ParseError(
-                format!("Could not extract key for hashmap: {:?}", r))),
-        };
-    }
-
-    Ok(hm)
+        .map(|mut hm| MValue::hashmap(&mut hm))
 }
 
 fn read_atom<'a>() -> Parser<'a, u8, MValue> {

@@ -8,8 +8,72 @@ pub fn list(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     Ok(MValue::list(args))
 }
 
+pub fn vector(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Ok(MValue::vector(args))
+}
+
+pub fn hashmap(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Ok(MValue::hashmap(&mut args.clone()))
+}
+
+pub fn symbol(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Ok(MValue::symbol(args[0].clone().cast_to_string()?))
+}
+
+pub fn keyword(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Ok(MValue::keyword(args[0].clone().cast_to_string()?))
+}
+
 pub fn list_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     let x = args[0].clone().is_list();
+
+    Ok(MValue::bool(x))
+}
+
+pub fn vector_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let x = args[0].clone().is_vector();
+
+    Ok(MValue::bool(x))
+}
+
+pub fn sequential_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let x = args[0].clone();
+
+    Ok(MValue::bool(x.is_list() || x.is_vector()))
+}
+
+pub fn map_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let x = args[0].clone().is_hashmap();
+
+    Ok(MValue::bool(x))
+}
+
+pub fn symbol_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let x = args[0].clone().is_symbol();
+
+    Ok(MValue::bool(x))
+}
+
+pub fn nil_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let x = args[0].clone().is_nil();
+
+    Ok(MValue::bool(x))
+}
+
+pub fn true_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let x = args[0].clone().cast_to_bool();
+
+    Ok(MValue::bool(x == true))
+}
+
+pub fn false_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let x = args[0].clone().cast_to_bool();
+
+    Ok(MValue::bool(x == false))
+}
+
+pub fn keyword_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let x = args[0].clone().is_keyword();
 
     Ok(MValue::bool(x))
 }
@@ -197,7 +261,7 @@ pub fn nth(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
         .cast_to_list()?
         .get(k)
         .cloned()
-        .ok_or_else(|| Error::EvalError("Out of bonds".to_string()))
+        .ok_or_else(|| Error::EvalError("Out of bounds".to_string()))
 }
 
 pub fn first(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
@@ -230,4 +294,64 @@ pub fn rest(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
         let l = list[1..].to_vec();
         Ok(MValue::list(l))
     }
+}
+
+pub fn throw(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Err(Error::Throw(args[0].clone()))
+}
+
+pub fn assoc(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let hm = args[0].clone();
+    let mut args = args[1..].to_vec();
+    hm.hassoc(&mut args)
+}
+
+pub fn dissoc(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let mut hm = args[0].clone().cast_to_hashmap()?;
+
+    for key in args[1..].to_vec() {
+        hm.remove(&(key.cast_to_string()?, key.enum_key()));
+    }
+
+    Ok(MValue::from_hashmap(hm))
+}
+
+pub fn get(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    if !args[0].is_hashmap() {
+        return Ok(MValue::nil())
+    }
+
+    let map = args[0].clone().cast_to_hashmap().unwrap();
+    let key = args[1].clone();
+
+    Ok(map.get(&(key.cast_to_string()?, key.enum_key()))
+        .cloned()
+        .unwrap_or_else(|| MValue::nil()))
+}
+
+pub fn contains_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let map = args[0].clone().cast_to_hashmap().unwrap();
+    let key = args[1].clone();
+
+    Ok(MValue::bool(
+            map.get(&(key.cast_to_string()?, key.enum_key()))
+                .is_some()))
+}
+
+pub fn keys(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let map = args[0].clone().cast_to_hashmap().unwrap();
+    let keys = map.keys()
+        .map(MValue::reconstruct)
+        .collect::<Result<Vec<MValue>>>();
+
+    Ok(MValue::list(keys?))
+}
+
+pub fn values(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let map = args[0].clone().cast_to_hashmap().unwrap();
+    let keys = map.values()
+        .cloned()
+        .collect::<Vec<MValue>>();
+
+    Ok(MValue::list(keys))
 }

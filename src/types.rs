@@ -3,6 +3,7 @@ use MalVal::*;
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::cell::RefCell;
+use std::string::ToString;
 
 use std::rc::Rc;
 use crate::env::Env;
@@ -20,7 +21,7 @@ pub enum MalVal {
     Bool(bool),
     List(Vec<MValue>),
     Vector(Vec<MValue>),
-    HashMap(HashMap<String, MValue>),
+    HashMap(HashMap<(String, String), MValue>),
     Sym(String),
     Str(String),
     Keyword(String),
@@ -61,6 +62,22 @@ impl MClosure {
 }
 
 impl MValue {
+    pub fn enum_key(&self) -> String {
+        match *self.0 {
+            Int(_) => "Int".to_string(),
+            Bool(_) => "Bool".to_string(),
+            Sym(_) => "Symbol".to_string(),
+            Keyword(_) => "Keyword".to_string(),
+            Atom(_) => "Atom".to_string(),
+            Str(_) => "String".to_string(),
+            Nil => "Nil".to_string(),
+            List(_) => "List".to_string(),
+            Vector(_) => "Vector".to_string(),
+            HashMap(_) => "Hashmap".to_string(),
+            Fun(_,_) | Lambda(_) => "Function".to_string(),
+        }
+    }
+
     pub fn integer(value: i32) -> MValue {
         MValue(Rc::new(MalVal::Int(value)), false)
     }
@@ -77,8 +94,13 @@ impl MValue {
         MValue(Rc::new(MalVal::Vector(value)), false)
     }
 
-    pub fn hashmap(value: HashMap<String, MValue>) -> MValue {
-        MValue(Rc::new(MalVal::HashMap(value)), false)
+    pub fn from_hashmap(hm: HashMap<(String, String), MValue>) -> MValue {
+        MValue(Rc::new(MalVal::HashMap(hm)), false)
+    }
+
+    pub fn hashmap(values: &mut Vec<MValue>) -> MValue {
+        let v = MValue(Rc::new(MalVal::HashMap(HashMap::new())), false);
+        v.hassoc(values).unwrap()
     }
 
     pub fn symbol(value: String) -> MValue {
@@ -137,6 +159,13 @@ impl MValue {
     pub fn is_vector(&self) -> bool {
         match *self.0 {
             MalVal::Vector(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_nil(&self) -> bool {
+        match *self.0 {
+            MalVal::Nil => true,
             _ => false,
         }
     }
@@ -223,6 +252,13 @@ impl MValue {
         }
     }
 
+    pub fn cast_to_lambda(&self) -> Result<MClosure> {
+        match *self.0 {
+            Lambda(ref closure) => Ok(closure.clone()),
+            _ => Err(Error::EvalError(format!("{} is not a closure", self))),
+        }
+    }
+
     pub fn cast_to_string(&self) -> Result<String> {
         match *self.0 {
             Sym(ref x) | Keyword(ref x) | Str(ref x) => Ok(x.clone()),
@@ -230,11 +266,38 @@ impl MValue {
         }
     }
 
-    pub fn cast_to_bool(&self) -> Result<bool> {
+    pub fn cast_to_bool(&self) -> bool {
         match *self.0 {
-            MalVal::Bool(x) => Ok(x),
-            _ => Err(Error::EvalError(format!("{} is not a bool", self))),
+            Bool(true) => true,
+            _ => false,
         }
+    }
+
+    pub fn reconstruct(value: &(String, String)) -> Result<MValue> {
+        match value {
+            (v, key) if key == "Symbol" => Ok(MValue::symbol(v.to_string())),
+            (v, key) if key == "Keyword" => Ok(MValue::keyword(v.to_string())),
+            (v, key) if key == "String" => Ok(MValue::string(v.to_string())),
+            x => Err(Error::EvalError(format!("Can't reconstruct {:?}", x))),
+        }
+    }
+
+    pub fn hassoc(&self, list: &mut Vec<MValue>) -> Result<MValue> {
+        let mut hm = self.clone().cast_to_hashmap()?;
+
+        while !list.is_empty() {
+            let v = list.pop().ok_or_else(|| Error::ParseError(
+                    "Could not extract value for hashmap".to_string()))?;
+
+            match list.pop() {
+                Some(ref k) if k.is_symbol() || k.is_string() || k.is_keyword() =>
+                    hm.insert((k.cast_to_string()?, k.enum_key()), v),
+                r => return Err(Error::ParseError(
+                        format!("Could not extract key for hashmap: {:?}", r))),
+            };
+        }
+
+        Ok(MValue(Rc::new(MalVal::HashMap(hm)), false))
     }
 
     pub fn cast_to_list(self) -> Result<Vec<MValue>> {
@@ -244,10 +307,10 @@ impl MValue {
         }
     }
 
-    pub fn cast_to_hashmap(self) -> Result<HashMap<String, MValue>> {
+    pub fn cast_to_hashmap(self) -> Result<HashMap<(String, String), MValue>> {
         match *self.0 {
             MalVal::HashMap(ref x) => Ok(x.clone()),
-            _ => Err(Error::EvalError(format!("{} is not a hasmap", self))),
+            _ => Err(Error::EvalError(format!("{} is not a hashmap", self))),
         }
     }
 
@@ -270,7 +333,7 @@ impl MValue {
             Vector(ref l) => print_sequence(&l, "[", "]", readably),
             HashMap(ref l) => {
                 let l = l.iter()
-                    .flat_map(|(k, v)| vec![MValue::string(k.to_string()), v.clone()])
+                    .flat_map(|(k, v)| vec![MValue::reconstruct(k).unwrap(), v.clone()])
                     .collect::<Vec<MValue>>();
                 print_sequence(&l, "{", "}", readably)
             },
@@ -307,6 +370,7 @@ impl Display for MValue {
 
 #[derive(Debug)]
 pub enum Error {
+    Throw(MValue),
     ParseError(String),
     EvalError(String),
     ArgsError,
@@ -314,13 +378,27 @@ pub enum Error {
     IoError(String),
 }
 
+impl Error {
+    pub fn catch(&self) -> MValue {
+        match self {
+            Error::Throw(ref v) => v.clone(),
+            Error::ParseError(_) => MValue::string(self.to_string()),
+            Error::EvalError(_) => MValue::string(self.to_string()),
+            Error::ArgsError => MValue::string(self.to_string()),
+            Error::NoSymbolFound(_) => MValue::string(self.to_string()),
+            Error::IoError(_) => MValue::string(self.to_string()),
+        }
+    }
+}
+
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Error::Throw(s) => write!(f, "Exception: {}", s),
             Error::ParseError(s) => write!(f, "Parse error: {}", s),
             Error::EvalError(s) => write!(f, "Eval error: {}", s),
             Error::ArgsError => write!(f, "Args error"),
-            Error::NoSymbolFound(s) => write!(f, "{} not found", s),
+            Error::NoSymbolFound(s) => write!(f, "\'{}\' not found", s),
             Error::IoError(s) => write!(f, "IO Error: {}", s),
         }
     }
