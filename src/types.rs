@@ -31,12 +31,6 @@ pub enum MalVal {
     Nil,
 }
 
-impl Default for MValue {
-    fn default() -> Self {
-        MValue(Rc::new(MalVal::Nil), false)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct MClosure {
     env: Env,
