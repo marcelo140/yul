@@ -74,7 +74,7 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
             },
 
             MalVal::Sym(ref sym) if sym == "if" => {
-                let condition = eval(l[1].clone(), &env)?; // MValue clone
+                let condition = eval(l[1].clone(), &env)?;
                 match *condition.0 {
                     MalVal::Bool(false) | MalVal::Nil if l.len() >= 4 =>
                         input = l[3].clone(),
@@ -111,8 +111,8 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
 
             MalVal::Sym(ref sym) if sym == "def!" => {
                 let key = l[1].cast_to_string()?;
-                let v = eval(l[2].clone(), &env)?; // malval clone
-                env.set(key, v.clone()); // malval clone
+                let v = eval(l[2].clone(), &env)?;
+                env.set(key, v.clone());
                 return Ok(v);
             },
 
@@ -135,16 +135,16 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
 
             MalVal::Sym(ref sym) if sym == "defmacro!" => {
                 let key = l[1].cast_to_string()?;
-                let mut v = eval(l[2].clone(), &env)?; // malval clone
+                let mut v = eval(l[2].clone(), &env)?;
                 v.set_macro();
-                env.set(key, v.clone()); // malval clone
+                env.set(key, v.clone());
                 return Ok(v);
             },
 
             MalVal::Sym(ref sym) if sym == "let*" => {
                 env = Env::new(Some(env.clone()));
 
-                let binds = l[1].clone().cast_to_list()?; // malval clone
+                let binds = l[1].clone().cast_to_list()?;
 
                 for (bind, expr) in binds.clone().into_iter().tuples() {
                     let bind = bind.cast_to_string()?;
