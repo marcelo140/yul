@@ -47,11 +47,11 @@ impl MClosure {
         }
     }
 
-    pub fn apply(&self, exprs: Vec<MValue>) -> (MValue, Env) {
+    pub fn apply(&self, exprs: Vec<MValue>) -> Result<(MValue, Env)> {
         let copy = self.clone();
-        let env = Env::with_binds(Some(copy.env), copy.parameters, exprs);
+        let env = Env::with_binds(Some(copy.env), copy.parameters, exprs)?;
 
-        (copy.body, env)
+        Ok((copy.body, env))
     }
 }
 

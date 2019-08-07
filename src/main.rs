@@ -225,7 +225,7 @@ fn handle_function(function: &MValue, args: Vec<MValue>) -> Result<MValue> {
         }, 
 
         MalVal::Lambda(ref fun, _) => {
-            let (body, new_env) = fun.apply(args);
+            let (body, new_env) = fun.apply(args)?;
             eval(body, &new_env)
         },
 
@@ -262,12 +262,7 @@ pub fn macro_expand(value: MValue, env: &Env) -> Result<MValue> {
     while value.is_macro_call(&env) {
         let list = value.clone().cast_to_list()?;
         let lambda = env.get(&list[0].cast_to_string()?).unwrap();
-        if let MalVal::Lambda(ref fun, _) = *lambda.0 {
-            let args = list[1..].to_vec();
-            let (body, new_env) = fun.apply(args);
-            value = eval(body, &new_env)?;
-        }
-
+        value = handle_function(&lambda, list[1..].to_vec())?;
     }
 
     Ok(value)
