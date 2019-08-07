@@ -9,6 +9,15 @@ use std::convert::TryFrom;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fs::read_to_string;
 
+macro_rules! assert_min_args {
+    ($args:expr, $min:literal)  => {{
+        if $args.len() < $min {
+            return Err(Error::EvalError(
+                    format!("Function requires at least {} argument(s).", $min)));
+        }
+    }};
+}
+
 pub fn list(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     Ok(MValue::list(args))
 }
@@ -22,74 +31,88 @@ pub fn hashmap(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn symbol(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     Ok(MValue::symbol(args[0].clone().cast_to_string()?))
 }
 
 pub fn keyword(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     Ok(MValue::keyword(args[0].clone().cast_to_string()?))
 }
 
 pub fn list_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone().is_list();
 
     Ok(MValue::bool(x))
 }
 
 pub fn vector_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone().is_vector();
 
     Ok(MValue::bool(x))
 }
 
 pub fn sequential_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone();
 
     Ok(MValue::bool(x.is_list() || x.is_vector()))
 }
 
 pub fn map_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone().is_hashmap();
 
     Ok(MValue::bool(x))
 }
 
 pub fn symbol_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone().is_symbol();
 
     Ok(MValue::bool(x))
 }
 
 pub fn nil_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone().is_nil();
 
     Ok(MValue::bool(x))
 }
 
 pub fn true_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone().cast_to_bool();
 
     Ok(MValue::bool(x))
 }
 
 pub fn false_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone().cast_to_bool();
 
     Ok(MValue::bool(!x))
 }
 
 pub fn keyword_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let x = args[0].clone().is_keyword();
 
     Ok(MValue::bool(x))
 }
 
 pub fn empty_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let list = args[0].clone().cast_to_list()?;
 
     Ok(MValue::bool(list.is_empty()))
 }
 
 pub fn count(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     let x = args[0].clone()
         .cast_to_list()
         .map(|v| v.len())
@@ -107,6 +130,8 @@ pub fn add(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn sub(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let mut x = args[0].cast_to_int()?;
 
     for y in args[1..].iter() {
@@ -125,6 +150,8 @@ pub fn mul(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn div(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let mut x = args[0].cast_to_int()?;
 
     for y in args[1..].iter() {
@@ -135,6 +162,8 @@ pub fn div(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn eq(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let x = args[0].clone();
     let y = args[1].clone();
 
@@ -142,6 +171,8 @@ pub fn eq(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn lt(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let x = args[0].cast_to_int()?;
     let y = args[1].cast_to_int()?;
 
@@ -149,6 +180,8 @@ pub fn lt(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn gt(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let x = args[0].cast_to_int()?;
     let y = args[1].cast_to_int()?;
 
@@ -156,6 +189,8 @@ pub fn gt(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn lte(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let x = args[0].cast_to_int()?;
     let y = args[1].cast_to_int()?;
 
@@ -163,6 +198,8 @@ pub fn lte(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn gte(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let x = args[0].cast_to_int()?;
     let y = args[1].cast_to_int()?;
 
@@ -212,6 +249,8 @@ pub fn println(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn read_str(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     let string = args[0].cast_to_string()?;
     let parser = read_form();
 
@@ -219,6 +258,8 @@ pub fn read_str(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn slurp(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     let filename = args[0].cast_to_string()?;
 
     read_to_string(filename)
@@ -227,22 +268,28 @@ pub fn slurp(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn atom(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     Ok(MValue::atom(args[0].clone()))
 }
 
 pub fn atom_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     Ok(MValue::bool(args[0].is_atom()))
 }
 
 pub fn deref(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     args[0].atom_deref()
 }
 
 pub fn reset(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
     args[0].atom_reset(args[1].clone())
 }
 
 pub fn cons(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let mut v = args[1].clone().cast_to_list()?;
     v.insert(0, args[0].clone());
 
@@ -260,6 +307,8 @@ pub fn concat(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn nth(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let k = usize::try_from(args[1].cast_to_int()?).unwrap();
 
     args[0].clone()
@@ -270,6 +319,8 @@ pub fn nth(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn first(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     let value = &args[0];
     if !value.is_list() && !value.is_vector() {
         Ok(MValue::nil())
@@ -284,6 +335,8 @@ pub fn first(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn rest(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     let value = &args[0];
     let l = vec![];
 
@@ -302,16 +355,22 @@ pub fn rest(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn throw(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     Err(Error::Throw(args[0].clone()))
 }
 
 pub fn assoc(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let hm = args[0].clone();
     let mut args = args[1..].to_vec();
     hm.hassoc(&mut args)
 }
 
 pub fn dissoc(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let mut hm = args[0].clone().cast_to_hashmap()?;
 
     for key in args[1..].to_vec() {
@@ -322,6 +381,8 @@ pub fn dissoc(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn get(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     if !args[0].is_hashmap() {
         return Ok(MValue::nil())
     }
@@ -335,6 +396,8 @@ pub fn get(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn contains_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
+
     let map = args[0].clone().cast_to_hashmap().unwrap();
     let key = args[1].clone();
 
@@ -344,24 +407,30 @@ pub fn contains_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn keys(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     let map = args[0].clone().cast_to_hashmap().unwrap();
     let keys = map.keys()
         .map(MValue::reconstruct)
-        .collect::<Result<Vec<MValue>>>();
+        .collect::<Result<_>>()?;
 
-    Ok(MValue::list(keys?))
+    Ok(MValue::list(keys))
 }
 
 pub fn values(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     let map = args[0].clone().cast_to_hashmap().unwrap();
     let keys = map.values()
         .cloned()
-        .collect::<Vec<MValue>>();
+        .collect::<Vec<_>>();
 
     Ok(MValue::list(keys))
 }
 
 pub fn readline(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
+
     let prompt = args[0].clone().cast_to_string()?;
     let mut ed = Editor::<()>::new();
 
@@ -383,31 +452,38 @@ pub fn time_ms(_args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn meta(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     args[0].meta()
 }
 
 pub fn with_meta(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
     args[0].with_meta(args[1].clone())
 }
 
 pub fn fn_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let r = (args[0].is_builtin() || args[0].is_lambda()) && !args[0].is_macro();
     Ok(MValue::bool(r))
 }
 
 pub fn string_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     Ok(MValue::bool(args[0].is_string()))
 }
 
 pub fn number_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     Ok(MValue::bool(args[0].is_number()))
 }
 
 pub fn macro_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     Ok(MValue::bool(args[0].is_macro()))
 }
 
 pub fn seq(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 1);
     let v = args[0].clone();
 
     if v.is_nil() {
@@ -419,11 +495,12 @@ pub fn seq(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     if l.is_empty() {
         return Ok(MValue::nil());
     }
-    
+
     Ok(MValue::list(l))
 }
 
 pub fn conj(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    assert_min_args!(&args, 2);
     let v = args[0].clone();
 
     if v.is_list() {
