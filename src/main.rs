@@ -159,17 +159,8 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
 
             _ => {
                 let evaluated_list = eval_ast(MValue::list(l), &env)?.cast_to_list()?;
-                let args = evaluated_list[1..].to_vec();
 
-                if let MalVal::Fun(fun, ref env, _) = *evaluated_list[0].0 {
-                    return fun(args, env.clone());
-                } else if let MalVal::Lambda(ref fun, _) = *evaluated_list[0].0 {
-                    let (body, new_env) = fun.apply(args);
-                    input = body;
-                    env = new_env;
-                } else {
-                    return Err(Error::EvalError(format!("Could not eval: {:?}", evaluated_list)));
-                }
+                return handle_function(&evaluated_list[0], evaluated_list[1..].to_vec());
             },
         }
     }
@@ -223,16 +214,23 @@ pub fn swap(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
     args.insert(0, atom.atom_deref()?);
 
-    if let MalVal::Fun(fun, ref env, _) = *f.0 {
-        let v = fun(args, env.clone())?;
-        return Ok(atom.atom_reset(v)?);
-    } else if let MalVal::Lambda(ref fun, _) = *f.0 {
-        let (body, new_env) = fun.apply(args);
-        let v = eval(body, &new_env)?;
-        return Ok(atom.atom_reset(v)?);
-    }
+    let v = handle_function(&f, args)?;
+    Ok(atom.atom_reset(v)?)
+}
 
-    Err(Error::EvalError(format!("No function provided: {:?}", *f.0)))
+fn handle_function(function: &MValue, args: Vec<MValue>) -> Result<MValue> {
+    match *function.0 {
+        MalVal::Fun(fun, ref env, _) => {
+            fun(args, env.clone())
+        }, 
+
+        MalVal::Lambda(ref fun, _) => {
+            let (body, new_env) = fun.apply(args);
+            eval(body, &new_env)
+        },
+
+        _ => Err(Error::EvalError(format!("No function provided: {:?}", *function.0)))
+    }
 }
 
 pub fn apply(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
@@ -245,14 +243,7 @@ pub fn apply(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
     args.append(&mut last_arguments);
 
-    if let MalVal::Fun(fun, ref env, _) = *f.0 {
-        return fun(args, env.clone());
-    } else if let MalVal::Lambda(ref fun, _) = *f.0 {
-        let (body, new_env) = fun.apply(args);
-        return eval(body, &new_env);
-    }
-
-    Err(Error::EvalError(format!("No function provided: {:?}", *f.0)))
+    handle_function(&f, args)
 }
 
 pub fn map(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
@@ -260,15 +251,7 @@ pub fn map(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     let values: Vec<MValue> = args[1].clone().cast_to_list()?;
 
     values.iter()
-        .map(|v| {
-            if let MalVal::Fun(fun, ref env, _) = *f.0 {
-                return fun(vec![v.clone()], env.clone());
-            } else if let MalVal::Lambda(ref fun, _) = *f.0 {
-                let (body, new_env) = fun.apply(vec![v.clone()]);
-                return eval(body, &new_env);
-            }
-            Err(Error::EvalError(format!("No function provided: {:?}", *f.0)))
-        })
+        .map(|v| handle_function(&f, vec![v.clone()]))
         .collect::<Result<Vec<MValue>>>()
         .map(MValue::list)
 }
