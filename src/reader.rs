@@ -73,7 +73,7 @@ fn read_number<'a>() -> Parser<'a, u8, MValue> {
 fn read_metadata<'a>() -> Parser<'a, u8, MValue> {
     let p = sym(b'^') * call(read_form) + call(read_form);
     p.map(|(mv1, mv2)| {
-        let v = vec![MValue::symbol("with-meta".to_string()), mv2, mv1];
+        let v = vec![MValue::symbol("with-meta"), mv2, mv1];
         MValue::list(v)
     })
 }
@@ -90,7 +90,7 @@ fn read_macro<'a>() -> Parser<'a, u8, MValue> {
 fn read_quote<'a>() -> Parser<'a, u8, MValue> {
     let p = sym(b'\'') * call(read_form);
     p.map(|mv| {
-        let v = vec![MValue::symbol("quote".to_string()), mv];
+        let v = vec![MValue::symbol("quote"), mv];
         MValue::list(v)
     })
 }
@@ -98,7 +98,7 @@ fn read_quote<'a>() -> Parser<'a, u8, MValue> {
 fn read_deref<'a>() -> Parser<'a, u8, MValue> {
     let p = sym(b'@') * call(read_form);
     p.map(|mv| {
-        let v = vec![MValue::symbol("deref".to_string()), mv];
+        let v = vec![MValue::symbol("deref"), mv];
         MValue::list(v)
     })
 }
@@ -106,7 +106,7 @@ fn read_deref<'a>() -> Parser<'a, u8, MValue> {
 fn read_quasiquote<'a>() -> Parser<'a, u8, MValue> {
     let p = sym(b'`') * call(read_form);
     p.map(|mv| {
-        let v = vec![MValue::symbol("quasiquote".to_string()), mv];
+        let v = vec![MValue::symbol("quasiquote"), mv];
         MValue::list(v)
     })
 }
@@ -114,7 +114,7 @@ fn read_quasiquote<'a>() -> Parser<'a, u8, MValue> {
 fn read_unquote<'a>() -> Parser<'a, u8, MValue> {
     let p = sym(b'~') * call(read_form);
     p.map(|mv| {
-        let v = vec![MValue::symbol("unquote".to_string()), mv];
+        let v = vec![MValue::symbol("unquote"), mv];
         MValue::list(v)
     })
 }
@@ -122,7 +122,7 @@ fn read_unquote<'a>() -> Parser<'a, u8, MValue> {
 fn read_splice_unquote<'a>() -> Parser<'a, u8, MValue> {
     let p = sym(b'~') * sym(b'@') * call(read_form);
     p.map(|mv| {
-        let v = vec![MValue::symbol("splice-unquote".to_string()), mv];
+        let v = vec![MValue::symbol("splice-unquote"), mv];
         MValue::list(v)
     })
 }
@@ -163,7 +163,7 @@ fn read_symbol<'a>() -> Parser<'a, u8, MValue> {
 fn test_read_keyword() {
     let value = read_keyword().parse(":ok".as_bytes()).unwrap();
 
-    assert_eq!(value, MValue::keyword("ok".to_string()));
+    assert_eq!(value, MValue::keyword("ok"));
 }
 
 #[test]
@@ -179,6 +179,6 @@ fn test_comment() {
                                        3 5)
                                    ;; End".as_bytes()).unwrap();
     assert_eq!(value, MValue::list(
-            vec![MValue::symbol("+".to_string()),
+            vec![MValue::symbol("+"),
                  MValue::integer(3), MValue::integer(5)]));
 }

@@ -124,16 +124,16 @@ impl MValue {
         v.hassoc(values).unwrap()
     }
 
-    pub fn symbol(value: String) -> MValue {
-        MValue(Rc::new(MalVal::Sym(value)), false)
+    pub fn symbol<T: ToString>(value: T) -> MValue {
+        MValue(Rc::new(MalVal::Sym(value.to_string())), false)
     }
 
     pub fn string<T: ToString>(value: T) -> MValue {
         MValue(Rc::new(MalVal::Str(value.to_string())), false)
     }
 
-    pub fn keyword(value: String) -> MValue {
-        MValue(Rc::new(MalVal::Keyword(value)), false)
+    pub fn keyword<T: ToString>(value: T) -> MValue {
+        MValue(Rc::new(MalVal::Keyword(value.to_string())), false)
     }
 
     pub fn atom(value: MValue) -> MValue {
@@ -309,9 +309,9 @@ impl MValue {
 
     pub fn reconstruct(value: &(String, String)) -> Result<MValue> {
         match value {
-            (v, key) if key == "Symbol" => Ok(MValue::symbol(v.to_string())),
-            (v, key) if key == "Keyword" => Ok(MValue::keyword(v.to_string())),
-            (v, key) if key == "String" => Ok(MValue::string(v.to_string())),
+            (v, key) if key == "Symbol" => Ok(MValue::symbol(v)),
+            (v, key) if key == "Keyword" => Ok(MValue::keyword(v)),
+            (v, key) if key == "String" => Ok(MValue::string(v)),
             x => Err(Error::EvalError(format!("Can't reconstruct {:?}", x))),
         }
     }
@@ -344,7 +344,7 @@ impl MValue {
     pub fn cast_to_list(self) -> Result<Vec<MValue>> {
         match *self.0 {
             List(ref x, _) | Vector(ref x, _) => Ok(x.to_vec()),
-            Str(ref s) => Ok(s.chars().map(|v| MValue::string(v)).collect()),
+            Str(ref s) => Ok(s.chars().map(MValue::string).collect()),
             _ => Err(Error::EvalError(format!("{} is not a list", self))),
         }
     }
@@ -424,11 +424,11 @@ impl Error {
     pub fn catch(&self) -> MValue {
         match self {
             Error::Throw(ref v) => v.clone(),
-            Error::ParseError(_) => MValue::string(self.to_string()),
-            Error::EvalError(_) => MValue::string(self.to_string()),
-            Error::ArgsError => MValue::string(self.to_string()),
-            Error::NoSymbolFound(_) => MValue::string(self.to_string()),
-            Error::IoError(_) => MValue::string(self.to_string()),
+            Error::ParseError(_) => MValue::string(self),
+            Error::EvalError(_) => MValue::string(self),
+            Error::ArgsError => MValue::string(self),
+            Error::NoSymbolFound(_) => MValue::string(self),
+            Error::IoError(_) => MValue::string(self),
         }
     }
 }

@@ -50,7 +50,7 @@ impl Env {
         }
     }
 
-    pub fn set(&self, key: String, value: MValue) {
-        self.0.borrow_mut().mappings.insert(key, value);
+    pub fn set<T: ToString>(&self, key: T, value: MValue) {
+        self.0.borrow_mut().mappings.insert(key.to_string(), value);
     }
 }

@@ -68,13 +68,13 @@ pub fn nil_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 pub fn true_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     let x = args[0].clone().cast_to_bool();
 
-    Ok(MValue::bool(x == true))
+    Ok(MValue::bool(x))
 }
 
 pub fn false_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     let x = args[0].clone().cast_to_bool();
 
-    Ok(MValue::bool(x == false))
+    Ok(MValue::bool(!x))
 }
 
 pub fn keyword_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
