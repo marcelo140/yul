@@ -161,9 +161,9 @@ fn eval(input: MValue, env: &Env) -> Result<MValue> {
                 let evaluated_list = eval_ast(MValue::list(l), &env)?.cast_to_list()?;
                 let args = evaluated_list[1..].to_vec();
 
-                if let MalVal::Fun(fun, ref env) = *evaluated_list[0].0 {
+                if let MalVal::Fun(fun, ref env, _) = *evaluated_list[0].0 {
                     return fun(args, env.clone());
-                } else if let MalVal::Lambda(ref fun) = *evaluated_list[0].0 {
+                } else if let MalVal::Lambda(ref fun, _) = *evaluated_list[0].0 {
                     let (body, new_env) = fun.apply(args);
                     input = body;
                     env = new_env;
@@ -216,13 +216,23 @@ fn meval(args: Vec<MValue>, env: Option<Env>) -> Result<MValue> {
     eval(args[0].clone(), &env.unwrap())
 }
 
-pub fn swap(args: Vec<MValue>, env: Option<Env>) -> Result<MValue> {
+pub fn swap(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     let mut args = args.clone();
     let atom = args.remove(0);
-    args.insert(1, atom.atom_deref()?);
+    let f = args.remove(0);
 
-    let v = eval(MValue::list(args), &env.unwrap())?;
-    atom.atom_reset(v)
+    args.insert(0, atom.atom_deref()?);
+
+    if let MalVal::Fun(fun, ref env, _) = *f.0 {
+        let v = fun(args, env.clone())?;
+        return Ok(atom.atom_reset(v)?);
+    } else if let MalVal::Lambda(ref fun, _) = *f.0 {
+        let (body, new_env) = fun.apply(args);
+        let v = eval(body, &new_env)?;
+        return Ok(atom.atom_reset(v)?);
+    }
+
+    Err(Error::EvalError(format!("No function provided: {:?}", *f.0)))
 }
 
 pub fn apply(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
@@ -235,9 +245,9 @@ pub fn apply(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
     args.append(&mut last_arguments);
 
-    if let MalVal::Fun(fun, ref env) = *f.0 {
+    if let MalVal::Fun(fun, ref env, _) = *f.0 {
         return fun(args, env.clone());
-    } else if let MalVal::Lambda(ref fun) = *f.0 {
+    } else if let MalVal::Lambda(ref fun, _) = *f.0 {
         let (body, new_env) = fun.apply(args);
         return eval(body, &new_env);
     }
@@ -251,9 +261,9 @@ pub fn map(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
     values.iter()
         .map(|v| {
-            if let MalVal::Fun(fun, ref env) = *f.0 {
+            if let MalVal::Fun(fun, ref env, _) = *f.0 {
                 return fun(vec![v.clone()], env.clone());
-            } else if let MalVal::Lambda(ref fun) = *f.0 {
+            } else if let MalVal::Lambda(ref fun, _) = *f.0 {
                 let (body, new_env) = fun.apply(vec![v.clone()]);
                 return eval(body, &new_env);
             }
@@ -269,7 +279,7 @@ pub fn macro_expand(value: MValue, env: &Env) -> Result<MValue> {
     while value.is_macro_call(&env) {
         let list = value.clone().cast_to_list()?;
         let lambda = env.get(&list[0].cast_to_string()?).unwrap();
-        if let MalVal::Lambda(ref fun) = *lambda.0 {
+        if let MalVal::Lambda(ref fun, _) = *lambda.0 {
             let args = list[1..].to_vec();
             let (body, new_env) = fun.apply(args);
             value = eval(body, &new_env)?;
@@ -349,13 +359,26 @@ fn main() {
     repl_env.set("contains?".to_string(), MValue::function(contains_q, None));
     repl_env.set("keys".to_string(), MValue::function(keys, None));
     repl_env.set("vals".to_string(), MValue::function(values, None));
+    repl_env.set("readline".to_string(), MValue::function(readline, None));
+    repl_env.set("time-ms".to_string(), MValue::function(time_ms, None));
+    repl_env.set("meta".to_string(), MValue::function(meta, None));
+    repl_env.set("with-meta".to_string(), MValue::function(with_meta, None));
+    repl_env.set("fn?".to_string(), MValue::function(fn_q, None));
+    repl_env.set("string?".to_string(), MValue::function(string_q, None));
+    repl_env.set("number?".to_string(), MValue::function(number_q, None));
+    repl_env.set("macro?".to_string(), MValue::function(macro_q, None));
+    repl_env.set("seq".to_string(), MValue::function(seq, None));
+    repl_env.set("conj".to_string(), MValue::function(conj, None));
+    repl_env.set("*host-language*".to_string(), MValue::string("Rust".to_string()));
     repl_env.set("eval".to_string(), MValue::function(meval, Some(repl_env.clone())));
 
     rep("(def! not (fn* (a) (if a false true)))", &repl_env);
     rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))"
         , &repl_env);
-    rep("(defmacro! or (fn* (& l) (if (not (empty? l)) (list 'if (first l) (first l) (cons 'or (rest l))))))", &repl_env);
     rep("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))", &repl_env);
+    rep("(def! *gensym-counter* (atom 0))", &repl_env);
+    rep("(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] (+ 1 x)))))))", &repl_env);
+    rep("(defmacro! or (fn* (& xs) (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs)))))))))", &repl_env);
 
     let mut argv = args().skip(1);
     let path = argv.next();
@@ -367,6 +390,8 @@ fn main() {
         rep(&command, &repl_env);
         return;
     }
+
+    rep("(println (str \"Mal [\" *host-language* \"]\"))", &repl_env);
 
     loop {
         let line = ed.readline("user> ");

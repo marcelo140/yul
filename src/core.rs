@@ -1,7 +1,12 @@
+use rustyline::Editor;
+use rustyline::error::ReadlineError;
+
 use crate::types::*;
 use crate::env::Env;
 use crate::reader::read_form;
+
 use std::convert::TryFrom;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::fs::read_to_string;
 
 pub fn list(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
@@ -90,7 +95,7 @@ pub fn count(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
         .map(|v| v.len())
         .unwrap_or(0);
 
-    Ok(MValue::integer(i32::try_from(x).unwrap()))
+    Ok(MValue::integer(i64::try_from(x).unwrap()))
 }
 
 pub fn add(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
@@ -354,4 +359,87 @@ pub fn values(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
         .collect::<Vec<MValue>>();
 
     Ok(MValue::list(keys))
+}
+
+pub fn readline(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let prompt = args[0].clone().cast_to_string()?;
+    let mut ed = Editor::<()>::new();
+
+    let usr_str = ed.readline(&prompt);
+
+    match usr_str {
+        Ok(usr_str) => Ok(MValue::string(usr_str)),
+        Err(ReadlineError::Eof) => Ok(MValue::nil()),
+        Err(err) => Err(Error::IoError(format!("Failed readling line: {:?}", err))),
+    }
+}
+
+pub fn time_ms(_args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| Error::EvalError("System time is earlier than epoch".to_string()))
+        .map(|d| i64::try_from(d.as_millis()).unwrap())
+        .map(MValue::integer)
+}
+
+pub fn meta(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    args[0].meta()
+}
+
+pub fn with_meta(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    args[0].with_meta(args[1].clone())
+}
+
+pub fn fn_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let r = (args[0].is_builtin() || args[0].is_lambda()) && !args[0].is_macro();
+    Ok(MValue::bool(r))
+}
+
+pub fn string_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Ok(MValue::bool(args[0].is_string()))
+}
+
+pub fn number_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Ok(MValue::bool(args[0].is_number()))
+}
+
+pub fn macro_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Ok(MValue::bool(args[0].is_macro()))
+}
+
+pub fn seq(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let v = args[0].clone();
+
+    if v.is_nil() {
+        return Ok(v);
+    }
+
+    let l = v.cast_to_list()?;
+
+    if l.is_empty() {
+        return Ok(MValue::nil());
+    }
+    
+    Ok(MValue::list(l))
+}
+
+pub fn conj(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    let v = args[0].clone();
+
+    if v.is_list() {
+        let mut v = v.cast_to_list()?;
+        let mut head = args[1..].to_vec();
+        head.reverse();
+        head.append(&mut v);
+        return Ok(MValue::list(head));
+    }
+
+    if v.is_vector() {
+        let mut v = v.cast_to_list()?;
+        let mut head = args[1..].to_vec();
+        v.append(&mut head);
+        return Ok(MValue::vector(v));
+    }
+
+    Ok(MValue::nil())
 }

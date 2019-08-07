@@ -1,7 +1,7 @@
 use MalVal::*;
 
 use std::collections::HashMap;
-use std::fmt::{self, Display};
+use std::fmt::{self, Display, Debug};
 use std::cell::RefCell;
 use std::string::ToString;
 
@@ -15,19 +15,19 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 #[derive(Clone, Debug, PartialEq)]
 pub struct MValue(pub Rc<MalVal>, bool);
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum MalVal {
-    Int(i32),
+    Int(i64),
     Bool(bool),
-    List(Vec<MValue>),
-    Vector(Vec<MValue>),
-    HashMap(HashMap<(String, String), MValue>),
+    List(Vec<MValue>, MValue),
+    Vector(Vec<MValue>, MValue),
+    HashMap(HashMap<(String, String), MValue>, MValue),
     Sym(String),
     Str(String),
     Keyword(String),
-    Fun(FnExpr, Option<Env>), // bool = is macro?
+    Fun(FnExpr, Option<Env>, MValue),
     Atom(RefCell<MValue>),
-    Lambda(MClosure),
+    Lambda(MClosure, MValue),
     Nil,
 }
 
@@ -62,6 +62,27 @@ impl MClosure {
 }
 
 impl MValue {
+    pub fn meta(&self) -> Result<MValue> {
+        match *self.0 {
+            List(_, ref v) | Vector(_, ref v) | HashMap(_, ref v)
+                | Fun(_,_, ref v) | Lambda(_, ref v) => Ok(v.clone()),
+            _ => Err(Error::EvalError(format!("{} has no metadata", self))),
+        }
+    }
+
+    pub fn with_meta(&self, meta: MValue) -> Result<MValue> {
+        let r = match *self.0 {
+            List(ref v, _) => List(v.clone(), meta),
+            Vector(ref v, _) => Vector(v.clone(), meta), 
+            HashMap(ref v, _) => HashMap(v.clone(), meta),
+            Fun(f, ref env, _) => Fun(f, env.clone(), meta),
+            Lambda(ref v, _) => Lambda(v.clone(), meta),
+            _ => return Err(Error::EvalError(format!("{} can't hold metadata", self))),
+        };
+
+        Ok(MValue(Rc::new(r), self.1))
+    }
+
     pub fn enum_key(&self) -> String {
         match *self.0 {
             Int(_) => "Int".to_string(),
@@ -71,14 +92,14 @@ impl MValue {
             Atom(_) => "Atom".to_string(),
             Str(_) => "String".to_string(),
             Nil => "Nil".to_string(),
-            List(_) => "List".to_string(),
-            Vector(_) => "Vector".to_string(),
-            HashMap(_) => "Hashmap".to_string(),
-            Fun(_,_) | Lambda(_) => "Function".to_string(),
+            List(_,_) => "List".to_string(),
+            Vector(_,_) => "Vector".to_string(),
+            HashMap(_,_) => "Hashmap".to_string(),
+            Fun(_,_,_) | Lambda(_,_) => "Function".to_string(),
         }
     }
 
-    pub fn integer(value: i32) -> MValue {
+    pub fn integer(value: i64) -> MValue {
         MValue(Rc::new(MalVal::Int(value)), false)
     }
 
@@ -87,19 +108,19 @@ impl MValue {
     }
 
     pub fn list(value: Vec<MValue>) -> MValue {
-        MValue(Rc::new(MalVal::List(value)), false)
+        MValue(Rc::new(MalVal::List(value, MValue::nil())), false)
     }
 
     pub fn vector(value: Vec<MValue>) -> MValue {
-        MValue(Rc::new(MalVal::Vector(value)), false)
+        MValue(Rc::new(MalVal::Vector(value, MValue::nil())), false)
     }
 
     pub fn from_hashmap(hm: HashMap<(String, String), MValue>) -> MValue {
-        MValue(Rc::new(MalVal::HashMap(hm)), false)
+        MValue(Rc::new(MalVal::HashMap(hm, MValue::nil())), false)
     }
 
     pub fn hashmap(values: &mut Vec<MValue>) -> MValue {
-        let v = MValue(Rc::new(MalVal::HashMap(HashMap::new())), false);
+        let v = MValue(Rc::new(MalVal::HashMap(HashMap::new(), MValue::nil())), false);
         v.hassoc(values).unwrap()
     }
 
@@ -107,8 +128,8 @@ impl MValue {
         MValue(Rc::new(MalVal::Sym(value)), false)
     }
 
-    pub fn string<T: Into<String>>(value: T) -> MValue {
-        MValue(Rc::new(MalVal::Str(value.into())), false)
+    pub fn string<T: ToString>(value: T) -> MValue {
+        MValue(Rc::new(MalVal::Str(value.to_string())), false)
     }
 
     pub fn keyword(value: String) -> MValue {
@@ -120,7 +141,7 @@ impl MValue {
     }
 
     pub fn function(value: FnExpr, env: Option<Env>) -> MValue {
-        MValue(Rc::new(MalVal::Fun(value, env)), false)
+        MValue(Rc::new(MalVal::Fun(value, env, MValue::nil())), false)
     }
 
     pub fn lambda(env: Env, parameters: Vec<String>, body: MValue) -> MValue {
@@ -128,7 +149,7 @@ impl MValue {
             env,
             parameters,
             body,
-        })), false)
+        }, MValue::nil())), false)
     }
 
     pub fn nil() -> MValue {
@@ -137,28 +158,35 @@ impl MValue {
 
     pub fn is_lambda(&self) -> bool {
         match *self.0 {
-            MalVal::Lambda(_) => true,
+            MalVal::Lambda(_,_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_builtin(&self) -> bool {
+        match *self.0 {
+            MalVal::Fun(_,_,_) => true,
             _ => false,
         }
     }
 
     pub fn is_list(&self) -> bool {
         match *self.0 {
-            MalVal::List(_) => true,
+            MalVal::List(_,_) => true,
             _ => false,
         }
     }
 
     pub fn is_hashmap(&self) -> bool {
         match *self.0 {
-            MalVal::HashMap(_) => true,
+            MalVal::HashMap(_,_) => true,
             _ => false,
         }
     }
 
     pub fn is_vector(&self) -> bool {
         match *self.0 {
-            MalVal::Vector(_) => true,
+            MalVal::Vector(_,_) => true,
             _ => false,
         }
     }
@@ -176,7 +204,7 @@ impl MValue {
 
     pub fn is_macro_call(&self, env: &Env) -> bool {
         match *self.0 {
-            MalVal::List(ref l) => {
+            MalVal::List(ref l, _) => {
                 if l.is_empty() {
                     return false;
                 }
@@ -198,6 +226,13 @@ impl MValue {
     pub fn is_symbol(&self) -> bool {
         match *self.0 {
             MalVal::Sym(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_number(&self) -> bool {
+        match *self.0 {
+            MalVal::Int(_) => true,
             _ => false,
         }
     }
@@ -227,8 +262,7 @@ impl MValue {
         self.1 = true;
     }
 
-    // TODO: cast_to_int and cast_to_list are not consistent in term of borrowing
-    pub fn cast_to_int(&self) -> Result<i32> {
+    pub fn cast_to_int(&self) -> Result<i64> {
         match *self.0 {
             MalVal::Int(x) => Ok(x),
             _ => Err(Error::EvalError(format!("{} is not a list!", self))),
@@ -254,7 +288,7 @@ impl MValue {
 
     pub fn cast_to_lambda(&self) -> Result<MClosure> {
         match *self.0 {
-            Lambda(ref closure) => Ok(closure.clone()),
+            Lambda(ref closure, _) => Ok(closure.clone()),
             _ => Err(Error::EvalError(format!("{} is not a closure", self))),
         }
     }
@@ -297,19 +331,27 @@ impl MValue {
             };
         }
 
-        Ok(MValue(Rc::new(MalVal::HashMap(hm)), false))
+        Ok(
+            MValue(
+                Rc::new(
+                    MalVal::HashMap(hm, MValue::nil())
+                ),
+                false
+            )
+        )
     }
 
     pub fn cast_to_list(self) -> Result<Vec<MValue>> {
         match *self.0 {
-            MalVal::List(ref x) | MalVal::Vector(ref x) => Ok(x.to_vec()),
+            List(ref x, _) | Vector(ref x, _) => Ok(x.to_vec()),
+            Str(ref s) => Ok(s.chars().map(|v| MValue::string(v)).collect()),
             _ => Err(Error::EvalError(format!("{} is not a list", self))),
         }
     }
 
     pub fn cast_to_hashmap(self) -> Result<HashMap<(String, String), MValue>> {
         match *self.0 {
-            MalVal::HashMap(ref x) => Ok(x.clone()),
+            MalVal::HashMap(ref x, _) => Ok(x.clone()),
             _ => Err(Error::EvalError(format!("{} is not a hashmap", self))),
         }
     }
@@ -329,15 +371,15 @@ impl MValue {
                 }
             },
             Nil => "nil".to_string(),
-            List(ref l) => print_sequence(&l, "(", ")", readably),
-            Vector(ref l) => print_sequence(&l, "[", "]", readably),
-            HashMap(ref l) => {
+            List(ref l, _) => print_sequence(&l, "(", ")", readably),
+            Vector(ref l, _) => print_sequence(&l, "[", "]", readably),
+            HashMap(ref l, _) => {
                 let l = l.iter()
                     .flat_map(|(k, v)| vec![MValue::reconstruct(k).unwrap(), v.clone()])
                     .collect::<Vec<MValue>>();
                 print_sequence(&l, "{", "}", readably)
             },
-            Fun(_,_) | Lambda(_) => "#<function>".to_string(),
+            Fun(_,_,_) | Lambda(_,_) => "#<function>".to_string(),
         }
     }
 }
@@ -413,14 +455,37 @@ impl PartialEq for MalVal {
       (Str(ref x), Str(ref y)) => x == y,
       (Keyword(ref x), Keyword(ref y)) => x == y,
       (Sym(ref x), Sym(ref y)) => x == y,
-      (List(ref x), List(ref y)) |
-      (Vector(ref x), Vector(ref y)) |
-      (List(ref x), Vector(ref y)) |
-      (Vector(ref x), List(ref y)) => x == y,
-      (HashMap(ref x), HashMap(ref y)) => x == y,
+      (List(ref x, _), List(ref y, _)) |
+      (Vector(ref x, _), Vector(ref y, _)) |
+      (List(ref x, _), Vector(ref y, _)) |
+      (Vector(ref x, _), List(ref y, _)) => x == y,
+      (HashMap(ref x, _), HashMap(ref y, _)) => x == y,
       _ => false,
     }
   }
+}
+
+impl Debug for MalVal {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Int(ref k) => write!(f, "{:?}", k),
+            Bool(ref b) => write!(f, "{:?}", b),
+            Sym(ref s) => write!(f, "{:?}", s),
+            Keyword(ref s) => write!(f, "{:?}", s),
+            Atom(ref v) => write!(f, "(atom {:?})", v),
+            Str(ref s) => write!(f, "{:?}", s),
+            Nil => write!(f, "nil"),
+            List(ref l, _) => write!(f, "{}", print_sequence(&l, "(", ")", true)),
+            Vector(ref l, _) => write!(f, "{}", print_sequence(&l, "[", "]", true)),
+            HashMap(ref l, _) => {
+                let l = l.iter()
+                    .flat_map(|(k, v)| vec![MValue::reconstruct(k).unwrap(), v.clone()])
+                    .collect::<Vec<MValue>>();
+                write!(f, "{}", print_sequence(&l, "{", "}", true))
+            },
+            Fun(_,_,_) | Lambda(_,_) => write!(f, "#<function>"),
+        }
+    }
 }
 
 impl From<pom::Error> for Error {
