@@ -392,7 +392,7 @@ pub fn get(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
     Ok(map.get(&(key.cast_to_string()?, key.enum_key()))
         .cloned()
-        .unwrap_or_else(|| MValue::nil()))
+        .unwrap_or_else(MValue::nil))
 }
 
 pub fn contains_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
