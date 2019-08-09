@@ -1,19 +1,21 @@
-use rustyline::Editor;
 use rustyline::error::ReadlineError;
+use rustyline::Editor;
 
-use crate::types::*;
 use crate::env::Env;
 use crate::reader::read_form;
+use crate::types::*;
 
 use std::convert::TryFrom;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::fs::read_to_string;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 macro_rules! assert_min_args {
-    ($args:expr, $min:literal)  => {{
+    ($args:expr, $min:literal) => {{
         if $args.len() < $min {
-            return Err(Error::EvalError(
-                    format!("Function requires at least {} argument(s).", $min)));
+            return Err(Error::EvalError(format!(
+                "Function requires at least {} argument(s).",
+                $min
+            )));
         }
     }};
 }
@@ -26,86 +28,86 @@ pub fn vector(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     Ok(MValue::vector(args))
 }
 
-pub fn hashmap(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
-    Ok(MValue::hashmap(&mut args.clone()))
+pub fn hashmap(mut args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
+    Ok(MValue::hashmap(&mut args))
 }
 
 pub fn symbol(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    Ok(MValue::symbol(args[0].clone().cast_to_string()?))
+    Ok(MValue::symbol(args[0].cast_to_string()?))
 }
 
 pub fn keyword(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    Ok(MValue::keyword(args[0].clone().cast_to_string()?))
+    Ok(MValue::keyword(args[0].cast_to_string()?))
 }
 
 pub fn list_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone().is_list();
+    let x = args[0].is_list();
 
     Ok(MValue::bool(x))
 }
 
 pub fn vector_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone().is_vector();
+    let x = args[0].is_vector();
 
     Ok(MValue::bool(x))
 }
 
 pub fn sequential_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone();
+    let x = args[0].is_list() || args[0].is_vector();
 
-    Ok(MValue::bool(x.is_list() || x.is_vector()))
+    Ok(MValue::bool(x))
 }
 
 pub fn map_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone().is_hashmap();
+    let x = args[0].is_hashmap();
 
     Ok(MValue::bool(x))
 }
 
 pub fn symbol_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone().is_symbol();
+    let x = args[0].is_symbol();
 
     Ok(MValue::bool(x))
 }
 
 pub fn nil_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone().is_nil();
+    let x = args[0].is_nil();
 
     Ok(MValue::bool(x))
 }
 
 pub fn true_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone().cast_to_bool();
+    let x = args[0].cast_to_bool();
 
     Ok(MValue::bool(x))
 }
 
 pub fn false_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone().cast_to_bool();
+    let x = args[0].cast_to_bool();
 
     Ok(MValue::bool(!x))
 }
 
 pub fn keyword_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let x = args[0].clone().is_keyword();
+    let x = args[0].is_keyword();
 
     Ok(MValue::bool(x))
 }
 
 pub fn empty_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let list = args[0].clone().cast_to_list()?;
+    let list = args[0].cast_to_list()?;
 
     Ok(MValue::bool(list.is_empty()))
 }
@@ -113,18 +115,14 @@ pub fn empty_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 pub fn count(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
 
-    let x = args[0].clone()
-        .cast_to_list()
-        .map(|v| v.len())
-        .unwrap_or(0);
+    let x = args[0].cast_to_list().map(|v| v.len()).unwrap_or(0);
+    let x = i64::try_from(x)?;
 
-    Ok(MValue::integer(i64::try_from(x).unwrap()))
+    Ok(MValue::integer(x))
 }
 
 pub fn add(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
-    let x = args.iter()
-        .flat_map(MValue::cast_to_int)
-        .sum();
+    let x = args.iter().flat_map(MValue::cast_to_int).sum();
 
     Ok(MValue::integer(x))
 }
@@ -142,9 +140,7 @@ pub fn sub(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn mul(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
-    let x = args.iter()
-        .flat_map(MValue::cast_to_int)
-        .product();
+    let x = args.iter().flat_map(MValue::cast_to_int).product();
 
     Ok(MValue::integer(x))
 }
@@ -163,11 +159,7 @@ pub fn div(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
 pub fn eq(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 2);
-
-    let x = args[0].clone();
-    let y = args[1].clone();
-
-    Ok(MValue::bool(x == y))
+    Ok(MValue::bool(args[0] == args[1]))
 }
 
 pub fn lt(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
@@ -207,9 +199,7 @@ pub fn gte(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn print_str(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
-    let x = args.iter()
-        .map(|x| x.pr_str(true))
-        .collect::<Vec<String>>();
+    let x = args.iter().map(|x| x.pr_str(true)).collect::<Vec<String>>();
 
     let r = x.join(" ");
 
@@ -217,7 +207,8 @@ pub fn print_str(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn string(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
-    let x = args.iter()
+    let x = args
+        .iter()
         .map(|x| x.pr_str(false))
         .collect::<Vec<String>>();
 
@@ -227,9 +218,7 @@ pub fn string(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn prn(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
-    let x = args.iter()
-        .map(|x| x.pr_str(true))
-        .collect::<Vec<String>>();
+    let x = args.iter().map(|x| x.pr_str(true)).collect::<Vec<String>>();
 
     let r = x.join(" ");
 
@@ -238,7 +227,8 @@ pub fn prn(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 }
 
 pub fn println(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
-    let x = args.iter()
+    let x = args
+        .iter()
         .map(|x| x.pr_str(false))
         .collect::<Vec<String>>();
 
@@ -290,7 +280,7 @@ pub fn reset(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 pub fn cons(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 2);
 
-    let mut v = args[1].clone().cast_to_list()?;
+    let mut v = args[1].cast_to_list()?;
     v.insert(0, args[0].clone());
 
     Ok(MValue::list(v))
@@ -309,9 +299,10 @@ pub fn concat(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 pub fn nth(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 2);
 
-    let k = usize::try_from(args[1].cast_to_int()?).unwrap();
+    let i = args[1].cast_to_int()?;
+    let k = usize::try_from(i)?;
 
-    args[0].clone()
+    args[0]
         .cast_to_list()?
         .get(k)
         .cloned()
@@ -325,7 +316,7 @@ pub fn first(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     if !value.is_list() && !value.is_vector() {
         Ok(MValue::nil())
     } else {
-        let list = value.clone().cast_to_list()?;
+        let list = value.cast_to_list()?;
         if list.is_empty() {
             return Ok(MValue::nil());
         }
@@ -343,7 +334,7 @@ pub fn rest(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     if !value.is_list() && !value.is_vector() {
         Ok(MValue::list(l))
     } else {
-        let list = value.clone().cast_to_list()?;
+        let list = value.cast_to_list()?;
 
         if list.is_empty() {
             return Ok(MValue::list(l));
@@ -356,14 +347,13 @@ pub fn rest(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
 pub fn throw(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-
     Err(Error::Throw(args[0].clone()))
 }
 
 pub fn assoc(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 2);
 
-    let hm = args[0].clone();
+    let hm = &args[0];
     let mut args = args[1..].to_vec();
     hm.hassoc(&mut args)
 }
@@ -371,7 +361,7 @@ pub fn assoc(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 pub fn dissoc(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 2);
 
-    let mut hm = args[0].clone().cast_to_hashmap()?;
+    let mut hm = args[0].cast_to_hashmap()?;
 
     for key in args[1..].to_vec() {
         hm.remove(&(key.cast_to_string()?, key.enum_key()));
@@ -384,35 +374,36 @@ pub fn get(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 2);
 
     if !args[0].is_hashmap() {
-        return Ok(MValue::nil())
+        return Ok(MValue::nil());
     }
 
-    let map = args[0].clone().cast_to_hashmap().unwrap();
-    let key = args[1].clone();
+    let map = args[0].cast_to_hashmap()?;
+    let key = args[1].cast_to_string()?;
+    let key_type = args[1].enum_key();
 
-    Ok(map.get(&(key.cast_to_string()?, key.enum_key()))
+    let r = map
+        .get(&(key, key_type))
         .cloned()
-        .unwrap_or_else(MValue::nil))
+        .unwrap_or_else(MValue::nil);
+    Ok(r)
 }
 
 pub fn contains_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 2);
 
-    let map = args[0].clone().cast_to_hashmap().unwrap();
-    let key = args[1].clone();
+    let map = args[0].cast_to_hashmap()?;
+    let key = args[1].cast_to_string()?;
+    let key_type = args[1].enum_key();
 
-    Ok(MValue::bool(
-            map.get(&(key.cast_to_string()?, key.enum_key()))
-                .is_some()))
+    let r = map.get(&(key, key_type)).is_some();
+    Ok(MValue::bool(r))
 }
 
 pub fn keys(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
 
-    let map = args[0].clone().cast_to_hashmap().unwrap();
-    let keys = map.keys()
-        .map(MValue::reconstruct)
-        .collect::<Result<_>>()?;
+    let map = args[0].cast_to_hashmap()?;
+    let keys = map.keys().map(MValue::reconstruct).collect::<Result<_>>()?;
 
     Ok(MValue::list(keys))
 }
@@ -420,10 +411,8 @@ pub fn keys(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 pub fn values(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
 
-    let map = args[0].clone().cast_to_hashmap().unwrap();
-    let keys = map.values()
-        .cloned()
-        .collect::<Vec<_>>();
+    let map = args[0].cast_to_hashmap()?;
+    let keys = map.values().cloned().collect::<Vec<_>>();
 
     Ok(MValue::list(keys))
 }
@@ -431,7 +420,7 @@ pub fn values(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 pub fn readline(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
 
-    let prompt = args[0].clone().cast_to_string()?;
+    let prompt = args[0].cast_to_string()?;
     let mut ed = Editor::<()>::new();
 
     let usr_str = ed.readline(&prompt);
@@ -447,7 +436,7 @@ pub fn time_ms(_args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| Error::EvalError("System time is earlier than epoch".to_string()))
-        .map(|d| i64::try_from(d.as_millis()).unwrap())
+        .and_then(|d| i64::try_from(d.as_millis()).map_err(From::from))
         .map(MValue::integer)
 }
 
@@ -484,13 +473,12 @@ pub fn macro_q(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
 pub fn seq(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 1);
-    let v = args[0].clone();
 
-    if v.is_nil() {
-        return Ok(v);
+    if args[0].is_nil() {
+        return Ok(args[0].clone());
     }
 
-    let l = v.cast_to_list()?;
+    let l = args[0].cast_to_list()?;
 
     if l.is_empty() {
         return Ok(MValue::nil());
@@ -501,7 +489,7 @@ pub fn seq(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
 
 pub fn conj(args: Vec<MValue>, _env: Option<Env>) -> Result<MValue> {
     assert_min_args!(&args, 2);
-    let v = args[0].clone();
+    let v = &args[0];
 
     if v.is_list() {
         let mut v = v.cast_to_list()?;

@@ -335,7 +335,7 @@ impl MValue {
         )
     }
 
-    pub fn cast_to_list(self) -> Result<Vec<MValue>> {
+    pub fn cast_to_list(&self) -> Result<Vec<MValue>> {
         match *self.0 {
             List(ref x, _) | Vector(ref x, _) => Ok(x.to_vec()),
             Str(ref s) => Ok(s.chars().map(MValue::string).collect()),
@@ -343,7 +343,7 @@ impl MValue {
         }
     }
 
-    pub fn cast_to_hashmap(self) -> Result<HashMap<(String, String), MValue>> {
+    pub fn cast_to_hashmap(&self) -> Result<HashMap<(String, String), MValue>> {
         match *self.0 {
             MalVal::HashMap(ref x, _) => Ok(x.clone()),
             _ => Err(Error::EvalError(format!("{} is not a hashmap", self))),
@@ -491,5 +491,11 @@ impl From<pom::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Error {
         Error::ParseError(error.to_string())
+    }
+}
+
+impl From<std::num::TryFromIntError> for Error {
+    fn from(error: std::num::TryFromIntError) -> Error {
+        Error::EvalError(error.to_string())
     }
 }
